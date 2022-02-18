@@ -4,6 +4,8 @@
 library(tidyverse)
 library(postpack)
 library(R2jags)
+library(mcmcplots)
+library(bayesboot)
 
 
 #Note that a lot of this code is copied/adapted from https://github.com/curryc2/Cook_Inlet_Chinook
@@ -21,38 +23,51 @@ dir.output <- file.path(wd,"Output")
 # Still unsure if this is the correct data. Using the RS_df2 dataframe from Make Figures.R
 # but it samples a subset of the posterior (e.g. Line 140 from "Make Figures.R") and I'm wondering why this step was done
 # and if I should instead calculate exact medians by removing the subsampling line?
+# BC: Yes it is the right data, but you are correct inference was only based on 1000 samples, and the indexing was wonky. A new version 
+#     of brood table with proper indexing and based on full set of posteriors is now read in as "brood_table"  
 
 #Question 2:
 #Indexing doesn't match online Supplement B. Have adjusted here to match but this needs checking
+# BC: new file has correct indexing so can comment all of this out
+#RS_df2 <- read.csv("RS_df2.csv")
 
-RS_df2 <- read.csv("RS_df2.csv")
+brood_table <- read.csv("brood_table.csv")
 
 #remove dummy data for 1981
 
-RS_df2_int1 <- filter(RS_df2,BroodYear>1981)
+#RS_df2_int1 <- filter(RS_df2,BroodYear>1981)
 
 #add three years to match indexing. This creates dataframe from 1985 to 2019
 
-RS_df2_int2 <- mutate(RS_df2_int1,BroodYear=(BroodYear+3))
+#RS_df2_int2 <- mutate(RS_df2_int1,BroodYear=(BroodYear+3))
 
 #remove years without recruitment estimates i.e. 2016 and higher
 
-data <- filter(RS_df2_int2,R_med!="NA")
+#data <- filter(RS_df2_int2,R_med!="NA")
 
 #Question 3
 #is it okay to use years 2013 - 2015 even though they were not estimated based on full recruitment?
+# BC: The model that generated the estimates derives complete recruitment estimates through 2015 based on 
+#      incomplete observations of brood year recruitment for brood years 2013-2015. So you could use these, but for 2013 onward they 
+#      are based on increasingly less data. So I would only used brood years 1985-2012, and have done so for now.  
+
+brood_table <- filter(brood_table,BroodYear<2013)
+
+#remove dummy data for 1981
+
+#RS_df2_int1 <- filter(RS_df2,BroodYear>1981)
 
 #sort into matrices
 
-pops = sort(unique(data$population))
+pops = sort(unique(brood_table$population))
 n.pops = length(pops)
 n.years = vector(length=n.pops)
-years <- matrix(nrow=n.pops,ncol=31)
+years <- matrix(nrow=n.pops,ncol=28)
 
 p <- 1
 for(p in 1:n.pops) {
-  n.years[p] <- length(unique(data$BroodYear[data$population==pops[p]]))
-  years[p,1:n.years[p]] <- sort(unique(data$BroodYear[data$population==pops[p]]))
+  n.years[p] <- length(unique(brood_table$BroodYear[brood_table$population==pops[p]]))
+  years[p,1:n.years[p]] <- sort(unique(brood_table$BroodYear[brood_table$population==pops[p]]))
 }#next i
 
 # Spawners and Recruits
@@ -67,10 +82,10 @@ for(p in 1:n.pops) {
     year <- years[p,y]
     
     #Spawners
-    Spawners[p,y] <- data$S_med[data$population==pops[p] & data$BroodYear==year]
+    Spawners[p,y] <- brood_table$S_med[brood_table$population==pops[p] & brood_table$BroodYear==year]
     #Recruits
-    Recruits[p,y] <- data$R_med[data$population==pops[p] & data$BroodYear==year]
-    ln.Recruits[p,y] <- log(data$R_med[data$population==pops[p] & data$BroodYear==year])
+    Recruits[p,y] <- brood_table$R_med[brood_table$population==pops[p] & brood_table$BroodYear==year]
+    ln.Recruits[p,y] <- log(brood_table$R_med[brood_table$population==pops[p] & brood_table$BroodYear==year])
   }#next y
 }#next p
 
@@ -98,7 +113,7 @@ Ice_int1 <- Ice_int1 %>%
   rename(Year=Year2)
 
 #remove extra years i.e. <1985 and >2015
-Ice_int2 <- filter(Ice_int1,Year>1984&Year<2016)
+Ice_int2 <- filter(Ice_int1,Year>1984&Year<2013)
 
 #standardize
 Ice_int3 <- t(scale(Ice_int2$Julian_day))
@@ -122,12 +137,17 @@ Emmonak_water_summary1  <- Emmonak_water_int1 %>%
 
 #two years missing middle mouth and one missing big eddy
 
-ggplot(Emmonak_water_int1_summary,aes(fill=Location,y=n,x=Project.Year))+
+#ggplot(Emmonak_water_int1_summary,aes(fill=Location,y=n,x=Project.Year))+
+  #geom_bar(stat="identity",position="dodge")+scale_y_continuous(trans="log2")
+
+ggplot(Emmonak_water_summary1,aes(fill=Location,y=n,x=Project.Year))+
   geom_bar(stat="identity",position="dodge")+scale_y_continuous(trans="log2")
 
 #sample timing differs too. before 2004 temperatures were only taken at 8 am and 8 pm
 #how many have 8 am and 8 pm?
 
+# BC: I get an error running the code below, think it has somehting to do with lubridate::as_date(), 
+#     not going to bother trying to figure out, and will instead just generate a dummy covariate @ end of section
 Emmonak_water_int2 <- Emmonak_water_int1 %>% 
   select(-Time) %>% 
   rename(Date_Time=Date) %>% 
@@ -260,6 +280,11 @@ n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 
+# BC: creating dummy data for migration temp covariate
+Migration_temp <- matrix(data=rnorm(length(Ice_out),0,0.25),
+                         nrow = 8,
+                         ncol = 28)
+
 ##put covariates into covars array for model
 
 library(abind)
@@ -295,6 +320,9 @@ jags_model = function(){
 
 #question 4: 
 #should I be adding a hyperparameter for alpha?
+# BC: To start I would say this is not needed as this would tend to reduce among populaiton estimates of intrinsic productivity (b/c it imposes
+#     assumption of alphas being drawn from common distribution). If you had alot of variability in amount of data among populaitons then might 
+  #   make more sense.  
   
     for(c in 1:n.covars) {
       mu.coef[c] ~ dnorm(0, pow(25,-2))
@@ -319,6 +347,7 @@ jags_model = function(){
 # question 5:
 
 #should I test with and without autocorrelation term?
+# BC: Yes that would be a good idea.   
 
   #possible priors for autocorrelation if needed:
   #Estimated to be shared among all populations.
@@ -338,9 +367,10 @@ jags_model = function(){
         }#next y
     
     #Fill in Ragged Components- pretty sure I don't need this step because years for each popn are the same?
-    for(y in (n.years[p]+1):max(n.years)) {
-      pred.rec[p,y] <- 0
-    }
+    # BC: correct. 
+    # for(y in (n.years[p]+1):max(n.years)) {
+    #  pred.rec[p,y] <- 0
+    #}
   }#next p
   
   #LIKELIHOODS
@@ -362,7 +392,10 @@ jags_inits = function() {
   
 #question 6: 
 #code copied from Curry might be wrong: should this be simga.oe instead of obs.sigma?
-  
+# BC: Yeah I think so, but probably does not matter if you are not initializing the 
+#    sampler with values drawn form obs.sigma (uniform distribution between 0.1-1) b/c
+#    I think JAGS auto initializes if you do not specify something. 
+
   mu.coef <- rnorm(n.covars, 0, 1)
   sigma.coef <- rgamma(n.covars, 1, 1)
   
@@ -373,14 +406,19 @@ jags_inits = function() {
 
 
 #### Set nodes to monitor ####
+# BC: There were some errors here with naming of parameters b/c some had an underscore in them but in model all use a period instead
 
-jags_params = c("alpha","exp_alpha", "beta", "sigma.oe","mu_coef","sigma_coef",
-                "coef","cov_eff","dist_coef","pred.rec")
+#jags_params = c("alpha","exp_alpha", "beta", "sigma.oe","mu_coef","sigma_coef",
+#                "coef","cov_eff","dist_coef","pred.rec")
+
+jags_params = c("alpha","exp.alpha", "beta", "sigma.oe","mu.coef","sigma.coef",
+                "coef","cov.eff","dist.coef","pred.rec")
 
 ##### Specify MCMC Dimensions #####
+# BC: I reduced # of iterations to make it quicker to assess model but have not looked at convergence diagnostics etc.
 jags_dims = c(
-  ni = 1e6,  # number of post-burn-in samples per chain
-  nb = 1e6,  # number of burn-in samples
+  ni = 1e4,  # number of post-burn-in samples per chain
+  nb = 1e4,  # number of burn-in samples
   nt = 200,     # thinning rate
   nc = 3      # number of chains
 )
@@ -396,8 +434,8 @@ out <- jags.parallel(data=jags_data,
   parameters.to.save=jags_params,
   n.chains=3, 
   n.thin=200, 
-  n.iter=2e6, 
-  n.burnin=1e6)  
+  n.iter=2e4, 
+  n.burnin=1e4)  
 
 #Save
 saveRDS(out, file=file.path(dir.output,"out.rds"))
@@ -405,5 +443,27 @@ saveRDS(out, file=file.path(dir.output,"out.rds"))
 #Write Output File for Diagnostics
 write.csv(out$BUGSoutput$summary, file=file.path(dir.figs,"out_summary.csv"))
 
+#Visualize results
+
+#Hyper means for covariates
+par(mfcol=c(1,2), mar=c(5,0,1,0), oma=c(1,1,3,1))
+c <- 1
+for(c in 1:n.covars) {
+  plotPost(out$BUGSoutput$sims.list$mu.coef[,c], showCurve=TRUE, main='', xlab=names.covars[c],
+           xlim=c(-0.5,0.5), rope=0)
+  abline(v=0, lty=1, lwd=2, col=rgb(1,0,0,alpha=0.5))
+}
 
 
+#Population specific covariate "effects"
+par(mfcol=c(1,2), mar=c(2,5,3,1), oma=c(2,2,1,1))
+c <- 1
+for(c in 1:n.covars) {
+  caterplot(out$BUGSoutput$sims.list$coef[,,c],
+            labels=pops, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
+  mtext(names.covars[c], side=3, outer=FALSE, line=1)
+  caterpoints(apply(out$BUGSoutput$sims.list$coef[,,c],2,median), reorder=FALSE, pch=21, col='red', bg='orange')
+  abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
+}
+mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
+mtext('Population', side=2, outer=TRUE, font=2, line=0.5)
