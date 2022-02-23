@@ -382,7 +382,19 @@ saveRDS(out, file=file.path(dir.output,"out.rds"))
 #Write Output File for Diagnostics
 write.csv(out$BUGSoutput$summary, file=file.path(dir.figs,"out_summary.csv"))
 
+##### STEP 7: CONVERGENCE DIAGNOSTICS #####
+## Code adapted from Intro to Bayesian Stats with JAGS course by Ben Staton ##
+diag_p = c("alpha", "beta", "sigma.coef", "sigma.oe","pred.rec")
+
+# view convergence diagnostic summaries for nodes with priors
+t(post_summ(as.mcmc(out), diag_p, Rhat = T, neff = T)[c("Rhat", "neff"),])
+
+# view diagnostic plots
+diag_plots(as.mcmc(out), diag_p, ext_device = T)
+
 #Visualize results
+
+pdf(file="Output/Results.pdf",width=10,height=5)
 
 #Hyper means for covariates
 par(mfcol=c(1,2), mar=c(5,0,1,0), oma=c(1,1,3,1))
@@ -392,7 +404,6 @@ for(c in 1:n.covars) {
            xlim=c(-0.5,0.5), rope=0)
   abline(v=0, lty=1, lwd=2, col=rgb(1,0,0,alpha=0.5))
 }
-
 
 #Population specific covariate "effects"
 par(mfcol=c(1,2), mar=c(2,5,3,1), oma=c(2,2,1,1))
@@ -406,3 +417,5 @@ for(c in 1:n.covars) {
 }
 mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
 mtext('Population', side=2, outer=TRUE, font=2, line=0.5)
+
+dev.off() 
