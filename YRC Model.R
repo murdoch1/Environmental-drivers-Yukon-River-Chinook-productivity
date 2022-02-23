@@ -6,6 +6,7 @@ library(postpack)
 library(R2jags)
 library(mcmcplots)
 library(bayesboot)
+library(lubridate)
 
 
 #Note that a lot of this code is copied/adapted from https://github.com/curryc2/Cook_Inlet_Chinook
@@ -18,44 +19,10 @@ dir.output <- file.path(wd,"Output")
 
 # Read in and process spawner recruit data ------------------------------------------------
 
-
-## Question 1: 
-# Still unsure if this is the correct data. Using the RS_df2 dataframe from Make Figures.R
-# but it samples a subset of the posterior (e.g. Line 140 from "Make Figures.R") and I'm wondering why this step was done
-# and if I should instead calculate exact medians by removing the subsampling line?
-# BC: Yes it is the right data, but you are correct inference was only based on 1000 samples, and the indexing was wonky. A new version 
-#     of brood table with proper indexing and based on full set of posteriors is now read in as "brood_table"  
-
-#Question 2:
-#Indexing doesn't match online Supplement B. Have adjusted here to match but this needs checking
-# BC: new file has correct indexing so can comment all of this out
-#RS_df2 <- read.csv("RS_df2.csv")
-
 brood_table <- read.csv("brood_table.csv")
 
-#remove dummy data for 1981
-
-#RS_df2_int1 <- filter(RS_df2,BroodYear>1981)
-
-#add three years to match indexing. This creates dataframe from 1985 to 2019
-
-#RS_df2_int2 <- mutate(RS_df2_int1,BroodYear=(BroodYear+3))
-
-#remove years without recruitment estimates i.e. 2016 and higher
-
-#data <- filter(RS_df2_int2,R_med!="NA")
-
-#Question 3
-#is it okay to use years 2013 - 2015 even though they were not estimated based on full recruitment?
-# BC: The model that generated the estimates derives complete recruitment estimates through 2015 based on 
-#      incomplete observations of brood year recruitment for brood years 2013-2015. So you could use these, but for 2013 onward they 
-#      are based on increasingly less data. So I would only used brood years 1985-2012, and have done so for now.  
-
+#removing years without full recruitment estimates
 brood_table <- filter(brood_table,BroodYear<2013)
-
-#remove dummy data for 1981
-
-#RS_df2_int1 <- filter(RS_df2,BroodYear>1981)
 
 #sort into matrices
 
@@ -167,9 +134,7 @@ ggplot(Emmonak_water_summary3,aes(fill=Location,y=n,x=Time))+
 #missing a few PM samples and only one AM sample in 1995. 
 #Use AM for now and sub in PM for 1995 until this can be adjusted
 
-Emmonak_water_int2 <- as.character(Emmonak_water_int2$Time)
-
-Emmonak_water_int2$Time <- format(as.POSIXct(Emmonak_water_int2$Time), "%H:%M:%S")
+Emmonak_water_int2$Time <- as.character(Emmonak_water_int2$Time)
 Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00")
 
 ggplot(Emmonak_water_int3,aes(x=Project.Year,y=Temperature..avg.))+
@@ -240,8 +205,8 @@ Emmonak_water_summary6  <- Emmonak_water_int10 %>%
 Emmonak_water_int11 <- Emmonak_water_int10 %>% 
   group_by(Project.Year) %>% summarise(water_temp=mean(Temperature..avg.))
 
-#remove extra years i.e. <1985 and >2015
-Emmonak_water_int12 <- filter(Emmonak_water_int11,Project.Year>1984&Project.Year<2016)
+#remove extra years i.e. <1985 and >2012
+Emmonak_water_int12 <- filter(Emmonak_water_int11,Project.Year>1984&Project.Year<2013)
 
 ggplot(Emmonak_water_int12,aes(fill=water_temp,y=water_temp,x=Project.Year))+
   geom_bar(stat="identity")
@@ -252,7 +217,7 @@ Migration_temp_int1 <- select(Emmonak_water_int12,water_temp)
 Migration_temp_int2 <- t(scale(Migration_temp_int1$water_temp))
 
 #copy rows down
-Migration_temp <- Migration_temp_int2[rep(seq_len(nrow(Migration_temp_int2)),each=8),]
+Migration_temp <- as.matrix(Migration_temp_int2[rep(seq_len(nrow(Migration_temp_int2)),each=8),])
 
 #To do; check for missing data within each year and determine if needs estimation
 #To do: check for obvious outliers/ measurement errors
@@ -280,10 +245,6 @@ n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 
-# BC: creating dummy data for migration temp covariate
-Migration_temp <- matrix(data=rnorm(length(Ice_out),0,0.25),
-                         nrow = 8,
-                         ncol = 28)
 
 ##put covariates into covars array for model
 
@@ -315,14 +276,6 @@ jags_data = list(
 jags_model = function(){
   
   #Priors
-
-  #hyperparameters
-
-#question 4: 
-#should I be adding a hyperparameter for alpha?
-# BC: To start I would say this is not needed as this would tend to reduce among populaiton estimates of intrinsic productivity (b/c it imposes
-#     assumption of alphas being drawn from common distribution). If you had alot of variability in amount of data among populaitons then might 
-  #   make more sense.  
   
     for(c in 1:n.covars) {
       mu.coef[c] ~ dnorm(0, pow(25,-2))
@@ -344,10 +297,7 @@ jags_model = function(){
     }
   }#next p
   
-# question 5:
-
-#should I test with and without autocorrelation term?
-# BC: Yes that would be a good idea.   
+#Reminder here to try testing with and without autocorrelation term 
 
   #possible priors for autocorrelation if needed:
   #Estimated to be shared among all populations.
@@ -365,13 +315,7 @@ jags_model = function(){
       pred.rec[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
       
         }#next y
-    
-    #Fill in Ragged Components- pretty sure I don't need this step because years for each popn are the same?
-    # BC: correct. 
-    # for(y in (n.years[p]+1):max(n.years)) {
-    #  pred.rec[p,y] <- 0
-    #}
-  }#next p
+    }#next p
   
   #LIKELIHOODS
   for(p in 1:n.pops) {
@@ -380,42 +324,36 @@ jags_model = function(){
       
     }#next y
   }#next p
-  
 }
-  
+
+
+
+
+
 #### Specify initial values ####
 
 jags_inits = function() {
   exp.alpha <- runif(n.pops,1,2)
   beta <- runif(n.pops,0,0.001)
-  obs.sigma <- runif(n.pops,0.1,1)
-  
-#question 6: 
-#code copied from Curry might be wrong: should this be simga.oe instead of obs.sigma?
-# BC: Yeah I think so, but probably does not matter if you are not initializing the 
-#    sampler with values drawn form obs.sigma (uniform distribution between 0.1-1) b/c
-#    I think JAGS auto initializes if you do not specify something. 
-
+  sigma.oe <- runif(n.pops,0.1,1)
   mu.coef <- rnorm(n.covars, 0, 1)
   sigma.coef <- rgamma(n.covars, 1, 1)
   
-  Return <- list(exp.alpha=exp.alpha, beta=beta, obs.sigma=obs.sigma,
+  Return <- list(exp.alpha=exp.alpha, beta=beta, sigma.oe=sigma.oe,
                  mu.coef=mu.coef, sigma.coef=sigma.coef)
   return(Return)
 }
 
 
 #### Set nodes to monitor ####
-# BC: There were some errors here with naming of parameters b/c some had an underscore in them but in model all use a period instead
-
-#jags_params = c("alpha","exp_alpha", "beta", "sigma.oe","mu_coef","sigma_coef",
-#                "coef","cov_eff","dist_coef","pred.rec")
 
 jags_params = c("alpha","exp.alpha", "beta", "sigma.oe","mu.coef","sigma.coef",
                 "coef","cov.eff","dist.coef","pred.rec")
 
 ##### Specify MCMC Dimensions #####
-# BC: I reduced # of iterations to make it quicker to assess model but have not looked at convergence diagnostics etc.
+
+#Note to check convergence diagnostics and increase iterations and/or burn in if needed in the future
+
 jags_dims = c(
   ni = 1e4,  # number of post-burn-in samples per chain
   nb = 1e4,  # number of burn-in samples
@@ -426,8 +364,6 @@ jags_dims = c(
 
 ##### Run the model with Jags #####
 
-#try this one
-#started 12:06
 out <- jags.parallel(data=jags_data,
   model.file=jags_model,
   inits=jags_inits,
@@ -436,6 +372,9 @@ out <- jags.parallel(data=jags_data,
   n.thin=200, 
   n.iter=2e4, 
   n.burnin=1e4)  
+
+#when iterations lowered get this error: Error in checkForRemoteErrors(val) : 
+#3 nodes produced errors; first error: n.iter must be a positive integer
 
 #Save
 saveRDS(out, file=file.path(dir.output,"out.rds"))
