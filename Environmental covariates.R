@@ -161,6 +161,175 @@ Migration_temp <- as.matrix(Migration_temp_int2[rep(seq_len(nrow(Migration_temp_
 
 write.csv(Migration_temp,file.path(dir.data,"/Environmental data/Processed/Migration_temp.csv"),row.names=FALSE)
 
+
+
+# Juvenile rearing temperature ------------------------------------------------
+
+#Using Daymet monthly air temperature data processed in ArcGIS Pro to watershed-level means
+
+Temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmonthlymean.csv"))
+
+Temp_int2 <- select(Temp_int1,SUB_DRAINA,StdTime,MEAN)
+Temp_int3 <- rename(Temp_int2,Population="SUB_DRAINA",AirTemp_mnth="MEAN")
+
+#pull out year and month columns
+
+Temp_int3$Year <- as.numeric(format(as.Date(Temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Temp_int3$Month <- as.numeric(format(as.Date(Temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Temp_int4 <- select(Temp_int3,-StdTime)
+
+#index to t = +1
+
+Temp_int5 <- Temp_int4 %>% 
+  mutate(Year2 = Year-1) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Temp_int6 <- filter(Temp_int5,Year>1984&Year<2013)
+
+#calculate annual rearing temperature from June to Aug
+
+Temp_int7 <- filter(Temp_int6,Month==6|Month==7|Month==8) 
+
+Temp_int8 <- Temp_int7 %>% 
+  group_by(Population,Year) %>% 
+  summarise(rearing_temp=mean(AirTemp_mnth))
+
+Temp_int9 <- Temp_int8
+
+Temp_int9$rearing_temp <- scale(Temp_int9$rearing_temp)
+
+#organize into matrix for analyses
+Temp_int10 <- Temp_int9 %>% 
+  spread(key=Year,value=rearing_temp)
+#checked popn order before slicing
+rearing_temp <- as.matrix(Temp_int10[2:29])
+
+write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"),row.names=FALSE)
+
+
+# Juvenile rearing precipitation ------------------------------------------------
+
+#Using Daymet monthly air precipitation data processed in ArcGIS Pro to watershed-level means
+
+Prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
+
+Prcp_int2 <- select(Prcp_int1,SUB_DRAINA,StdTime,MEAN)
+Prcp_int3 <- rename(Prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+
+#pull out year and month columns
+
+Prcp_int3$Year <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Prcp_int3$Month <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Prcp_int4 <- select(Prcp_int3,-StdTime)
+
+#index to t = +1
+
+Prcp_int5 <- Prcp_int4 %>% 
+  mutate(Year2 = Year-1) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Prcp_int6 <- filter(Prcp_int5,Year>1984&Year<2013)
+
+#calculate annual rearing precipitation from June to Aug
+
+Prcp_int7 <- filter(Prcp_int6,Month==6|Month==7|Month==8) 
+
+Prcp_int8 <- Prcp_int7 %>% 
+  group_by(Population,Year) %>% 
+  summarise(rearing_prcp=sum(Prcp_mnth))
+
+Prcp_int9 <- Prcp_int8
+
+Prcp_int9$rearing_prcp <- scale(Prcp_int9$rearing_prcp)
+
+#organize into matrix for analyses
+Prcp_int10 <- Prcp_int9 %>% 
+  spread(key=Year,value=rearing_prcp)
+#checked popn order before slicing
+rearing_prcp <- as.matrix(Prcp_int10[2:29])
+
+write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"),row.names=FALSE)
+
+
+
+# Maximum annual snow -----------------------------------------------------
+
+#Influence on following freshet and summer water temperatures
+#Try impact on outmigration smolts +2
+#rearing fish +1
+#spawning t = 0
+
+#Using Daymet snow water equivalent data. Maximum values are averaged over each watershed by year
+
+Swe_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Snow_max.csv"))
+
+
+Swe_int2 <- select(Swe_int1,SUB_DRAINA,StdTime,MEAN)
+Swe_int3 <- rename(Swe_int2,Population="SUB_DRAINA",Swe="MEAN")
+
+#pull out year and month columns
+
+Swe_int3$Year <- as.numeric(format(as.Date(Swe_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+
+Swe_int4 <- select(Swe_int3,-StdTime)
+
+#index to t = +2
+
+Swe_int5 <- Swe_int4 %>% 
+  mutate(Year2 = Year-0) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Swe_int6 <- filter(Swe_int5,Year>1984&Year<2013)
+
+Swe_int7 <- Swe_int6
+
+Swe_int7$Swe <- scale(Swe_int7$Swe)
+
+#organize into matrix for analyses
+Swe_int8 <- Swe_int7 %>% 
+  spread(key=Year,value=Swe)
+#checked popn order before slicing
+annual_snowpack <- as.matrix(Swe_int8[2:29])
+
+write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"),row.names=FALSE)
+
+
+# Checking correlations between vars -----------------------------------------------
+
+#wrangling to long data
+Migration_for_corrl <- rename(Emmonak_water_int12,Year="Project.Year",migration_temp="water_temp")
+
+Ice_for_corrl_int1 <- data.frame(rename(Ice_int2,Breakup_day="Julian_day"))
+Ice_for_corrl_int2 <- select(Ice_for_corrl_int1,-Date)
+Ice_for_corrl_int2$Year <- as.numeric(Ice_for_corrl_int2$Year)
+Ice_for_corrl <- Ice_for_corrl_int2
+
+rearing_precip_for_corrl <- Prcp_int8
+rearing_temp_for_corrl <-Temp_int8
+annual_snowpack_for_corrl <- Swe_int6
+
+master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
+master_corrl <- left_join(master_corrl,Migration_for_corrl)
+master_corrl <- left_join(master_corrl,Ice_for_corrl)
+master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
+master_corrl <- master_corrl[,3:7]
+
+cor.table <- cor(master_corrl)
+write.csv(cor.table,file.path(dir.data,"/Environmental data/Processed/cor_table.csv"),row.names=FALSE)
+
+library(corrplot)
+corrplot(cor.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+
 #To do; check for missing data within each year and determine if needs estimation
 #To do: check for obvious outliers/ measurement errors
 #TO DO: derive weekly maximums?
@@ -169,8 +338,6 @@ write.csv(Migration_temp,file.path(dir.data,"/Environmental data/Processed/Migra
 #To do: figure out if there is a way to use migration temps for returning years also - this will matter if returns are too stressed to hit the border count
 
 #other possible variables to include:
-#Mean summer air temperature (June - Aug) in basin for rearing juveniles (t = +1)
-#Mean summer precipitation (June - Aug) in basin for rearing juveniles (t = +1)
 #Mean precipitation during spawning and early incubation (Aug - Nov) in basin (t = 0)
 #Temperature for spawning/incubation in basin (t = 0)
 #Sea surface temp (t = +2, +3)

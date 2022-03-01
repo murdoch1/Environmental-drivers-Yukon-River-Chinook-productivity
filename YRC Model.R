@@ -65,9 +65,12 @@ for(p in 1:n.pops) {
 
 Ice_out <- read.csv(file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"))
 Migration_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp.csv"))
+rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
+rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
+annual_snowpack <- read.csv(file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"))
 
 # Define covariate names
-names.covars <- c("Ice_out","Migration_temp")
+names.covars <- c("Ice_out","Migration_temp","rearing_temp","rearing_prcp","annual_snowpack")
 n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
@@ -77,11 +80,8 @@ covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 
 library(abind)
 
-covars <- abind(Ice_out,Migration_temp,along=3)
+covars <- abind(Ice_out,Migration_temp,rearing_temp,rearing_prcp,annual_snowpack,along=3)
 print(covars)
-
-#TO DO: remember to test for correlations between covariates
-
 
 
 # Make a list for Jags ----------------------------------------------------
@@ -221,10 +221,10 @@ diag_plots(as.mcmc(out), diag_p, ext_device = T)
 
 #Visualize results
 
-pdf(file="Plots/Results.pdf",width=10,height=5)
+pdf(file="Plots/Results_spawn.pdf",width=9,height=6)
 
 #Hyper means for covariates
-par(mfcol=c(1,2), mar=c(5,0,1,0), oma=c(1,1,3,1))
+par(mfcol=c(2,3), mar=c(5,0,1,0), oma=c(1,1,3,1))
 c <- 1
 for(c in 1:n.covars) {
   plotPost(out$BUGSoutput$sims.list$mu.coef[,c], showCurve=TRUE, main='', xlab=names.covars[c],
@@ -233,7 +233,7 @@ for(c in 1:n.covars) {
 }
 
 #Population specific covariate "effects"
-par(mfcol=c(1,2), mar=c(2,5,3,1), oma=c(2,2,1,1))
+par(mfcol=c(2,3), mar=c(2,5,3,1), oma=c(2,2,1,1))
 c <- 1
 for(c in 1:n.covars) {
   caterplot(out$BUGSoutput$sims.list$coef[,,c],
