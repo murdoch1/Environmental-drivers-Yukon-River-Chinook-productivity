@@ -24,32 +24,17 @@ summarizedDOY <- arrayAsDF %>%
   data.frame()
 summarizedDOY
 
-#sub in year and population names
-#need to verify order
-popn=rep(c("LowerMainstem","White-Donjek","Pelly","Stewart","Carmacks","Teslin","MiddleMainstem","UpperMainstem"),times=(35))
-summarizedDOY[,"population"] <- popn
 
-years=rep(1985:2019,each=8)
-summarizedDOY[,"year"] <- years
 
-write.csv(summarizedDOY,"Data/MigTiming_stats.csv",row.names=FALSE)
 
-#calculate interval needed by year
-
-Timing_interval_25_75 <- summarizedDOY %>%
-  group_by(year) %>%
-  summarize(min= min(q_25),
-            max=max(q_75)) %>%
-  data.frame()
-Timing_interval_25_75
-
-#list of day of year that fish are passing
+#full list of day of year that fish are passing
 
 summarizedDOY_long <- arrayAsDF %>%
   group_by(year, population) %>%
   summarize(yday = rep(doy, Percent))
 
-#add stats
+#calculate interval needed by year using dates between 25th and 75th percentiles of the run
+#adjust migration timing by one month earlier when fish pass lower Yukon where temperature data is taken
 
 summarizedDOY_long_int1 <- left_join(summarizedDOY_long,summarizedDOY)
 
@@ -62,8 +47,7 @@ MigTiming_intervals_int1 <- summarizedDOY_long_int1 %>%
 levels(MigTiming_intervals_int1$year) <- 1985:2019
 levels(MigTiming_intervals_int1$population) <- (c("LowerMainstem","White-Donjek","Pelly","Stewart","Carmacks","Teslin","MiddleMainstem","UpperMainstem"))
 
+#remove duplicates
 MigTiming_intervals <- distinct(MigTiming_intervals_int1)
 
-
-
-write.csv(summarizedDOY,"Data/MigTiming_stats.csv",row.names=FALSE)
+write.csv(MigTiming_intervals,"Data/MigTiming_intervals.csv",row.names=FALSE)

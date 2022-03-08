@@ -37,7 +37,10 @@ write.csv(Ice_out,file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"
 #data from https://www.adfg.alaska.gov/CF_R3/external/sites/aykdbms_website/DataSelection.aspx
 #search for Lower Yukon Test Fishing data
 
-Emmonak_water_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Emmonak Water Temp Data.csv"))
+Emmonak_water_int1a <- read.csv(file.path(dir.data,"/Environmental data/Raw/Emmonak Water Temp Data1.csv"))
+Emmonak_water_int1b <- read.csv(file.path(dir.data,"/Environmental data/Raw/Emmonak Water Temp Data2.csv"))
+Emmonak_water_int1a$Instrument.Site <- as.character(Emmonak_water_int1a$Instrument.Site)
+Emmonak_water_int1 <- bind_rows(Emmonak_water_int1a,Emmonak_water_int1b)
 
 #sampling locations across year change, look at summary
 
@@ -45,9 +48,6 @@ Emmonak_water_summary1  <- Emmonak_water_int1 %>%
   group_by(Project.Year,Location) %>% count(Location)
 
 #two years missing middle mouth and one missing big eddy
-
-#ggplot(Emmonak_water_int1_summary,aes(fill=Location,y=n,x=Project.Year))+
-#geom_bar(stat="identity",position="dodge")+scale_y_continuous(trans="log2")
 
 ggplot(Emmonak_water_summary1,aes(fill=Location,y=n,x=Project.Year))+
   geom_bar(stat="identity",position="dodge")+scale_y_continuous(trans="log2")
@@ -61,11 +61,12 @@ Emmonak_water_int2 <- Emmonak_water_int1 %>%
   separate(Date_Time, into = c("Date", "Time"), sep = " ", remove = FALSE) %>%
   mutate(Date = lubridate::as_date(Date, format = "%Y-%m-%d"),
          Time = hms::as_hms(str_c(Time, ":00")))
+#note missing date and time data just for one entry in 2014
 
 Emmonak_water_summary2  <- Emmonak_water_int2 %>% 
   group_by(Project.Year,Location) %>% count(Time)
 
-
+#examining data before 2004
 Emmonak_water_summary3 <- filter(Emmonak_water_summary2,Project.Year<2004)
 
 ggplot(Emmonak_water_summary3,aes(fill=Location,y=n,x=Time))+
@@ -75,7 +76,7 @@ ggplot(Emmonak_water_summary3,aes(fill=Location,y=n,x=Time))+
 #Use AM for now and sub in PM for 1995 until this can be adjusted
 
 Emmonak_water_int2$Time <- as.character(Emmonak_water_int2$Time)
-Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00")
+Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00"|Time=="08:01:00")
 
 ggplot(Emmonak_water_int3,aes(x=Project.Year,y=Temperature..avg.))+
   geom_point()
@@ -88,7 +89,7 @@ ggplot(Emmonak_water_summary4,aes(fill=Location,y=n,x=Location))+
 
 #best bet for now is to use Big Eddy data at 8 AM. Will be missing for three years:
 #1990 was only middle mouth, 1995 not sampled at 8 AM, 2003 also only sampled at MM
-#For now sub in MM for BE in 1990 and 2003 and use 8 PM for 1995 from Big Eddy
+#For now sub in MM for BE in 1990 and 2003 and use 8 PM for 1995 from Big Eddy** fix or remove later
 
 #extract Big Eddy
 Emmonak_water_int4 <- filter(Emmonak_water_int3,Location=="Big Eddy")
@@ -109,15 +110,6 @@ Emmonak_water_int8 <- mutate(Emmonak_water_int7,julian_date=yday(Date))
 ggplot(Emmonak_water_int8,aes(y=Temperature..avg.,x=julian_date))+
   geom_point()+geom_smooth()+facet_wrap(~Project.Year)
 
-#figure out general timing window for passing Emmonak for Can-origin 
-#travel time is approx one month between river mouth and the border
-#estimate late May to early Aug but pick window based on comparability of data to start
-
-#looks like data missing before July 15 in 2000
-#1999 started a bit late - June 15
-#can maybe pull data from Pilot for this year if needed?
-#check Jones paper - does the model just infer absences? or is better to estimate inputs
-
 Emmonak_water_int9 <- filter(Emmonak_water_int8,Temperature..avg.!="NA")
 
 Emmonak_water_summary5  <- Emmonak_water_int9 %>% 
@@ -126,44 +118,87 @@ Emmonak_water_summary5  <- Emmonak_water_int9 %>%
     min = min(julian_date),
     max=max(julian_date))
 
-#most years have data from June 9 - Aug 1. use this window for now
 
-Emmonak_water_int10 <- filter(Emmonak_water_int9,julian_date>159&julian_date<214)
+#adjust migration interval by population and year using derived passage timing from population diversity paper
 
-ggplot(Emmonak_water_int10,aes(y=Temperature..avg.,x=julian_date))+
-  geom_point()+geom_smooth()+facet_wrap(~Project.Year)
+Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv"))
 
-Emmonak_water_summary6  <- Emmonak_water_int10 %>% 
-  group_by(Project.Year) %>% summarise(
+Timing_int1 <- rename(Timing_int1,yday=yday_adj)
+
+#join to temperature data
+#note some years have missing data (see Temp_data_availability for comparison in main folder)
+#estimate later ?
+
+Emmonak_water_int10 <- Emmonak_water_int9 %>% 
+  select(Project.Year,Temperature..avg.,julian_date) %>% 
+  rename(year=Project.Year,yday=julian_date,water_temp=Temperature..avg.)
+
+Emmonak_water_int11 <- left_join(Timing_int1,Emmonak_water_int10)
+
+ggplot(Emmonak_water_int11,aes(y=water_temp,x=yday,))+
+  geom_point()+geom_smooth()+facet_wrap(~year)
+
+Emmonak_water_summary7  <- Emmonak_water_int11 %>% 
+  group_by(year,population) %>% summarise(
     count = n(),
-    min = min(julian_date),
-    max=max(julian_date))
+    min = min(yday),
+    max=max(yday),
+    minWT=min(water_temp),
+    meanWT=mean(water_temp),
+    maxZWT=max(water_temp))
 
 
-#calculate mean daily water temp during migration as temporary covariate
+#calculate mean daily water temp during migration
 
-Emmonak_water_int11 <- Emmonak_water_int10 %>% 
-  group_by(Project.Year) %>% summarise(water_temp=mean(Temperature..avg.))
+Emmonak_water_int12 <- Emmonak_water_int11 %>% 
+  group_by(year,population) %>% summarise(water_temp=mean(water_temp,na.rm=TRUE))
 
 #remove extra years i.e. <1985 and >2012
-Emmonak_water_int12 <- filter(Emmonak_water_int11,Project.Year>1984&Project.Year<2013)
+Emmonak_water_int13 <- filter(Emmonak_water_int12,year>1984&year<2020)
 
-ggplot(Emmonak_water_int12,aes(fill=water_temp,y=water_temp,x=Project.Year))+
-  geom_bar(stat="identity")
+Emmonak_water_summary8  <- Emmonak_water_int13 %>% 
+  group_by(population) %>% summarise(
+    count = n(),
+    meanWT=mean(water_temp,na.rm=TRUE))
 
-Migration_temp_int1 <- select(Emmonak_water_int12,water_temp)
+#add missing data
+Emmonak_water_int13[32,3] <- 12 #WD 1988
+Emmonak_water_int13[38,3] <- 14 #Teslin 1989
+Emmonak_water_int13[84,3] <- 14.5 #Pelly 1995
+Emmonak_water_int13[90,3] <- 8.2 #LM 1996
+Emmonak_water_int13[109,3] <- 14.7 #Stewart 1998
+Emmonak_water_int13[121,3] <- 15.1 #Carmacks 2000
+Emmonak_water_int13[122,3] <- 12.7 #LM 2000
+Emmonak_water_int13[123,3] <- 15.6 #MM 2000
+Emmonak_water_int13[124,3] <- 14.2 #Pelly 2000
+Emmonak_water_int13[125,3] <- 13.9 #Stewart 2000
+Emmonak_water_int13[126,3] <- 14.7 #Teslin 2000
+Emmonak_water_int13[127,3] <- 16.4 #UM 2000
+Emmonak_water_int13[128,3] <- 13.8 #WJ 2000
+Emmonak_water_int13[135,3] <- 14.4 #UM 2001
+Emmonak_water_int13[173,3] <- 11.5 #Stewart 2006
+
+
+ggplot(Emmonak_water_int13,aes(y=water_temp,x=population,))+
+ geom_boxplot()
+
+#subbing in water temp for returns - clean up later
+Emmonak_water_int13 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns.csv"))
+Emmonak_water_int13 <- Emmonak_water_int13 %>% select(-water_temp) %>% 
+  rename(water_temp="Mig_temp_returns")
 
 #standardize
-Migration_temp_int2 <- t(scale(Migration_temp_int1$water_temp))
 
-#copy rows down
-Migration_temp <- as.matrix(Migration_temp_int2[rep(seq_len(nrow(Migration_temp_int2)),each=8),])
+Emmonak_water_int13$water_temp <- scale(Emmonak_water_int13$water_temp)
+
+Migration_temp <- Emmonak_water_int13 %>% select(-prop_4,-prop_5,-prop_6,-prop_7) %>% 
+  spread(year,water_temp) %>% select(-Population)
 
 write.csv(Migration_temp,file.path(dir.data,"/Environmental data/Processed/Migration_temp.csv"),row.names=FALSE)
 
 
 
-# Juvenile rearing temperature ------------------------------------------------
+##### Juvenile rearing temperature ------------------------------------------------
 
 #Using Daymet monthly air temperature data processed in ArcGIS Pro to watershed-level means
 
@@ -210,7 +245,7 @@ rearing_temp <- as.matrix(Temp_int10[2:29])
 write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"),row.names=FALSE)
 
 
-# Juvenile rearing precipitation ------------------------------------------------
+##### Juvenile rearing precipitation ------------------------------------------------
 
 #Using Daymet monthly air precipitation data processed in ArcGIS Pro to watershed-level means
 
@@ -258,7 +293,7 @@ write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing
 
 
 
-# Maximum annual snow -----------------------------------------------------
+##### Maximum annual snow -----------------------------------------------------
 
 #Influence on following freshet and summer water temperatures
 #Try impact on outmigration smolts +2
@@ -316,6 +351,15 @@ rearing_precip_for_corrl <- Prcp_int8
 rearing_temp_for_corrl <-Temp_int8
 annual_snowpack_for_corrl <- Swe_int6
 
+#using water temp for returns
+#Migration_for_corrl <-Emmonak_water_int13
+#Migration_for_corrl <- rename(Migration_for_corrl,Year=year,Population=population)
+#Migration_for_corrl$Population <- as.factor(Migration_for_corrl$Population)
+#levels(Migration_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                           #   Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+
+
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
 master_corrl <- left_join(master_corrl,Migration_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
@@ -334,8 +378,7 @@ corrplot(cor.table, method="number",type = "upper", order = "hclust",
 #To do: check for obvious outliers/ measurement errors
 #TO DO: derive weekly maximums?
 #TO DO: estimate run timing past Emmonak and adjust migration temp by population and maybe even by year
-#To do: confirm that Emmonak temps are outside of delta influence
-#To do: figure out if there is a way to use migration temps for returning years also - this will matter if returns are too stressed to hit the border count
+#To do: confirm that Emmonak temps are outside of delta influencening years also - this will matter if returns are too stressed to hit the border count
 
 #other possible variables to include:
 #Mean precipitation during spawning and early incubation (Aug - Nov) in basin (t = 0)

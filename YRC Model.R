@@ -221,7 +221,7 @@ diag_plots(as.mcmc(out), diag_p, ext_device = T)
 
 #Visualize results
 
-pdf(file="Plots/Results_spawn.pdf",width=9,height=6)
+pdf(file="Plots/Results_MigTemp_returns_Mar7_v2.pdf",width=9,height=6)
 
 #Hyper means for covariates
 par(mfcol=c(2,3), mar=c(5,0,1,0), oma=c(1,1,3,1))
