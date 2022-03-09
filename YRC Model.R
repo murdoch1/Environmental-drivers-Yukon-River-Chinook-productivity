@@ -64,13 +64,14 @@ for(p in 1:n.pops) {
 # Merge covariate data ----------------------------------------------------
 
 Ice_out <- read.csv(file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"))
-Migration_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp.csv"))
+Migration_temp_t0 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"))
+Migration_temp_returns <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"))
 rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
 rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
 annual_snowpack <- read.csv(file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"))
 
 # Define covariate names
-names.covars <- c("Ice_out","Migration_temp","rearing_temp","rearing_prcp","annual_snowpack")
+names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","rearing_temp","rearing_prcp","annual_snowpack")
 n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
@@ -80,7 +81,7 @@ covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 
 library(abind)
 
-covars <- abind(Ice_out,Migration_temp,rearing_temp,rearing_prcp,annual_snowpack,along=3)
+covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,rearing_temp,rearing_prcp,annual_snowpack,along=3)
 print(covars)
 
 
@@ -221,7 +222,7 @@ diag_plots(as.mcmc(out), diag_p, ext_device = T)
 
 #Visualize results
 
-pdf(file="Plots/Results_MigTemp_returns_Mar7_v2.pdf",width=9,height=6)
+pdf(file="Plots/Results_MigTemp_returns_Mar8.pdf",width=9,height=6)
 
 #Hyper means for covariates
 par(mfcol=c(2,3), mar=c(5,0,1,0), oma=c(1,1,3,1))

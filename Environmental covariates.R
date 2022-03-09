@@ -153,7 +153,7 @@ Emmonak_water_summary7  <- Emmonak_water_int11 %>%
 Emmonak_water_int12 <- Emmonak_water_int11 %>% 
   group_by(year,population) %>% summarise(water_temp=mean(water_temp,na.rm=TRUE))
 
-#remove extra years i.e. <1985 and >2012
+#remove extra years
 Emmonak_water_int13 <- filter(Emmonak_water_int12,year>1984&year<2020)
 
 Emmonak_water_summary8  <- Emmonak_water_int13 %>% 
@@ -178,23 +178,41 @@ Emmonak_water_int13[128,3] <- 13.8 #WJ 2000
 Emmonak_water_int13[135,3] <- 14.4 #UM 2001
 Emmonak_water_int13[173,3] <- 11.5 #Stewart 2006
 
+#data for calculating return index
+write.csv(Emmonak_water_int13,file.path(dir.data,"/Environmental data/Processed/Migration_temp_unstd.csv"),row.names=FALSE)
 
 ggplot(Emmonak_water_int13,aes(y=water_temp,x=population,))+
  geom_boxplot()
 
-#subbing in water temp for returns - clean up later
-Emmonak_water_int13 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns.csv"))
-Emmonak_water_int13 <- Emmonak_water_int13 %>% select(-water_temp) %>% 
+#standardize
+Emmonak_water_int14 <- Emmonak_water_int13
+Emmonak_water_int14$water_temp <- scale(Emmonak_water_int14$water_temp)
+
+Migration_temp_t0 <- Emmonak_water_int14 %>% filter(year<2013) %>%   
+  spread(year,water_temp) %>% select(-population)
+
+write.csv(Migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"),row.names=FALSE)
+
+
+
+##### Migration temperature (RETURN INDEX) ------------------------------------
+
+Migration_temp_returns_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns.csv"))
+Migration_temp_returns_int1 <- Migration_temp_returns_int1 %>% 
+  select(-water_temp,-prop_4,-prop_5,-prop_6,-prop_7) %>% 
   rename(water_temp="Mig_temp_returns")
 
 #standardize
+Migration_temp_returns_int2 <- Migration_temp_returns_int1
+Migration_temp_returns_int2$water_temp <- scale(Migration_temp_returns_int2$water_temp)
 
-Emmonak_water_int13$water_temp <- scale(Emmonak_water_int13$water_temp)
+ggplot(Migration_temp_returns_int1,aes(y=water_temp,x=Population,))+
+ geom_boxplot()
 
-Migration_temp <- Emmonak_water_int13 %>% select(-prop_4,-prop_5,-prop_6,-prop_7) %>% 
+Migration_temp_returns <- Migration_temp_returns_int2 %>% 
   spread(year,water_temp) %>% select(-Population)
 
-write.csv(Migration_temp,file.path(dir.data,"/Environmental data/Processed/Migration_temp.csv"),row.names=FALSE)
+write.csv(Migration_temp_returns,file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"),row.names=FALSE)
 
 
 
@@ -340,7 +358,17 @@ write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annu
 # Checking correlations between vars -----------------------------------------------
 
 #wrangling to long data
-Migration_for_corrl <- rename(Emmonak_water_int12,Year="Project.Year",migration_temp="water_temp")
+Migtemp_t0_for_corrl <- rename(Emmonak_water_int13,Year="year",migtemp_t0="water_temp",Population="population")
+Migtemp_t0_for_corrl$Population <- as.factor(Migtemp_t0_for_corrl$Population)
+levels(Migtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+
+
+Migtemp_returns_for_corrl <- rename(Migration_temp_returns_int1,Year="year",migtemp_returns="water_temp")
+Migtemp_returns_for_corrl$Population <- as.factor(Migtemp_returns_for_corrl$Population)
+levels(Migtemp_returns_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 Ice_for_corrl_int1 <- data.frame(rename(Ice_int2,Breakup_day="Julian_day"))
 Ice_for_corrl_int2 <- select(Ice_for_corrl_int1,-Date)
@@ -351,23 +379,14 @@ rearing_precip_for_corrl <- Prcp_int8
 rearing_temp_for_corrl <-Temp_int8
 annual_snowpack_for_corrl <- Swe_int6
 
-#using water temp for returns
-#Migration_for_corrl <-Emmonak_water_int13
-#Migration_for_corrl <- rename(Migration_for_corrl,Year=year,Population=population)
-#Migration_for_corrl$Population <- as.factor(Migration_for_corrl$Population)
-#levels(Migration_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
-                                           #   Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
-
-
-
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
-master_corrl <- left_join(master_corrl,Migration_for_corrl)
+master_corrl <- left_join(master_corrl,Migtemp_t0_for_corrl)
+master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
-master_corrl <- master_corrl[,3:7]
+master_corrl <- master_corrl[,3:8]
 
 cor.table <- cor(master_corrl)
-write.csv(cor.table,file.path(dir.data,"/Environmental data/Processed/cor_table.csv"),row.names=FALSE)
 
 library(corrplot)
 corrplot(cor.table, method="number",type = "upper", order = "hclust", 
@@ -375,10 +394,7 @@ corrplot(cor.table, method="number",type = "upper", order = "hclust",
 
 
 #To do; check for missing data within each year and determine if needs estimation
-#To do: check for obvious outliers/ measurement errors
 #TO DO: derive weekly maximums?
-#TO DO: estimate run timing past Emmonak and adjust migration temp by population and maybe even by year
-#To do: confirm that Emmonak temps are outside of delta influencening years also - this will matter if returns are too stressed to hit the border count
 
 #other possible variables to include:
 #Mean precipitation during spawning and early incubation (Aug - Nov) in basin (t = 0)
