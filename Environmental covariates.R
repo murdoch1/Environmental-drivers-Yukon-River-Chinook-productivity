@@ -61,7 +61,7 @@ Emmonak_water_int2 <- Emmonak_water_int1 %>%
   separate(Date_Time, into = c("Date", "Time"), sep = " ", remove = FALSE) %>%
   mutate(Date = lubridate::as_date(Date, format = "%Y-%m-%d"),
          Time = hms::as_hms(str_c(Time, ":00")))
-#note missing date and time data just for one entry in 2014
+#note missing date and time data just for one entry in 2014 gives warning message
 
 Emmonak_water_summary2  <- Emmonak_water_int2 %>% 
   group_by(Project.Year,Location) %>% count(Time)
@@ -72,14 +72,66 @@ Emmonak_water_summary3 <- filter(Emmonak_water_summary2,Project.Year<2004)
 ggplot(Emmonak_water_summary3,aes(fill=Location,y=n,x=Time))+
   geom_bar(stat="identity",position="dodge")+facet_wrap(~Project.Year)
 
-#missing a few PM samples and only one AM sample in 1995. 
-#Use AM for now and sub in PM for 1995 until this can be adjusted
+#most consistent data collection is for Big Eddy data at 8 AM. Will be missing for three years:
+#1990 was only middle mouth, 1995 not sampled at 8 AM, 2003 also only sampled at MM
 
+#detour to examine differences for later replacement
+
+#1. Look at significant differences between AM and PM samples for Big Eddy and adjust for missing morning samples in 1995
 Emmonak_water_int2$Time <- as.character(Emmonak_water_int2$Time)
-Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00"|Time=="08:01:00")
+AM_PM_int1 <- Emmonak_water_int2 %>%
+  filter((Time=="08:00:00"|Time=="08:01:00"|Time=="20:00:00")&Location=="Big Eddy") %>% 
+  select(Date,Time,Temperature..avg.) %>% 
+  mutate(Time = as.factor(case_when(Time=="20:00:00"  ~ "Evening",
+                             Time %in% c("08:00:00","08:01:00") ~ "Morning"))) 
 
-ggplot(Emmonak_water_int3,aes(x=Project.Year,y=Temperature..avg.))+
-  geom_point()
+AM_PM_int2 <- AM_PM_int1 %>% 
+  group_by(Date,Time) %>% 
+  summarize(water_temp = mean(Temperature..avg.))
+
+AM_PM_compare <- AM_PM_int2 %>% spread(Time,water_temp)
+
+#visualize differences
+ggplot(AM_PM_compare,aes(y=Evening,x=Morning))+
+  geom_point()+geom_smooth()
+
+ggplot(AM_PM_int2,aes(y=water_temp,x=Time))+
+  geom_boxplot()
+
+#model differences
+temp_time <- summary(lm(Morning~Evening,data=AM_PM_compare))
+temp_time
+
+#morning temps can be calculated using the linear model y = 0.980783*x + 0.021345
+
+#2. Look at significant differences between Big Eddy and Middle Mouth samples for years with missing Big Eddy
+
+BE_MM_compare_int1 <- Emmonak_water_int2 %>% 
+  filter(Time=="08:00:00"|Time=="08:01:00") %>% 
+  select(Location,Date,Temperature..avg.) 
+
+BE_MM_compare_int2 <- BE_MM_compare_int1 %>% 
+  group_by(Location,Date) %>% 
+  summarize(water_temp = mean(Temperature..avg.)) 
+
+BE_MM_compare <- BE_MM_compare_int2 %>% spread(Location,water_temp) %>% 
+  rename(Middle_Mouth="Middle Mouth",Big_Eddy="Big Eddy")
+
+#visualize differences
+ggplot(BE_MM_compare,aes(y=Middle_Mouth,x=Big_Eddy))+
+  geom_point()+geom_smooth(method = "lm")
+
+ggplot(BE_MM_compare_int2,aes(y=water_temp,x=Location))+
+  geom_boxplot()
+
+#model differences
+temp_location <- summary(lm(Big_Eddy~Middle_Mouth,data=BE_MM_compare))
+temp_location
+
+#Big Eddy missing temps can be calculated using the linear model y = 0.80138*x + 3.02411
+
+#Continue data processing
+Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00"|Time=="08:01:00")
 
 Emmonak_water_summary4  <- Emmonak_water_int3 %>% 
   group_by(Project.Year,Location) %>% count(Time)
@@ -87,19 +139,19 @@ Emmonak_water_summary4  <- Emmonak_water_int3 %>%
 ggplot(Emmonak_water_summary4,aes(fill=Location,y=n,x=Location))+
   geom_bar(stat="identity",position="dodge")+facet_wrap(~Project.Year)
 
-#best bet for now is to use Big Eddy data at 8 AM. Will be missing for three years:
-#1990 was only middle mouth, 1995 not sampled at 8 AM, 2003 also only sampled at MM
-#For now sub in MM for BE in 1990 and 2003 and use 8 PM for 1995 from Big Eddy** fix or remove later
-
 #extract Big Eddy
 Emmonak_water_int4 <- filter(Emmonak_water_int3,Location=="Big Eddy")
 
-#extract MM for 1990 and 2003
-Emmonak_water_int5 <- filter(Emmonak_water_int3,Location=="Middle Mouth"&Project.Year=="1990"|
-                               Location=="Middle Mouth"&Project.Year=="2003")
+#extract MM for 1990 and 2003 and adjust based on linear model
+Emmonak_water_int5 <- Emmonak_water_int3 %>% filter(Location=="Middle Mouth"&Project.Year=="1990"|
+    Location=="Middle Mouth"&Project.Year=="2003") %>% 
+    mutate(Temperature..avg.=Temperature..avg.*0.80138+3.02411)
 
-#extract 8 PM for Big Eddy in 1995
-Emmonak_water_int6 <- filter(Emmonak_water_int2,Time=="20:00:00"&Location=="Big Eddy"&Project.Year=="1995")
+#extract 8 PM for Big Eddy in 1995 and adjust based on linear model
+Emmonak_water_int6 <- Emmonak_water_int2 %>% 
+  filter(Time=="20:00:00"&Location=="Big Eddy"&Project.Year=="1995") %>% 
+  mutate(Temperature..avg.=Temperature..avg.*0.980783+0.021345)
+
 
 #bind dataframes together
 Emmonak_water_int7 <- bind_rows(Emmonak_water_int4,Emmonak_water_int5,Emmonak_water_int6)
@@ -119,11 +171,11 @@ Emmonak_water_summary5  <- Emmonak_water_int9 %>%
     max=max(julian_date))
 
 
+
+
 #adjust migration interval by population and year using derived passage timing from population diversity paper
 
 Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv"))
-
-Timing_int1 <- rename(Timing_int1,yday=yday_adj)
 
 #join to temperature data
 #note some years have missing data (see Temp_data_availability for comparison in main folder)
@@ -143,10 +195,14 @@ Emmonak_water_summary7  <- Emmonak_water_int11 %>%
     count = n(),
     min = min(yday),
     max=max(yday),
-    minWT=min(water_temp),
-    meanWT=mean(water_temp),
-    maxZWT=max(water_temp))
+    minWT=min(water_temp,na.rm=TRUE),
+    meanWT=mean(water_temp,na.rm=TRUE),
+    maxWT=max(water_temp,na.rm=TRUE),
+    count(is.na()))
 
+
+#left off --- need to figure out the number of NA's in each calculation 
+#need to update the returning index temp and rerun
 
 #calculate mean daily water temp during migration
 
@@ -197,7 +253,7 @@ write.csv(Migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Mi
 
 ##### Migration temperature (RETURN INDEX) ------------------------------------
 
-Migration_temp_returns_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns.csv"))
+Migration_temp_returns_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns_unformatted.csv"))
 Migration_temp_returns_int1 <- Migration_temp_returns_int1 %>% 
   select(-water_temp,-prop_4,-prop_5,-prop_6,-prop_7) %>% 
   rename(water_temp="Mig_temp_returns")
@@ -265,7 +321,7 @@ write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/rearing
 
 ##### Juvenile rearing precipitation ------------------------------------------------
 
-#Using Daymet monthly air precipitation data processed in ArcGIS Pro to watershed-level means
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
 
 Prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
 
@@ -309,6 +365,92 @@ rearing_prcp <- as.matrix(Prcp_int10[2:29])
 
 write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"),row.names=FALSE)
 
+
+
+##### Spawning and early incubation temperature -------------------------------
+
+#Using Daymet monthly air temperature data processed in ArcGIS Pro to watershed-level means
+
+Spawn_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmonthlymean.csv"))
+
+Spawn_temp_int2 <- select(Spawn_temp_int1,SUB_DRAINA,StdTime,MEAN)
+Spawn_temp_int3 <- rename(Spawn_temp_int2,Population="SUB_DRAINA",AirTemp_mnth="MEAN")
+
+#pull out year and month columns
+
+Spawn_temp_int3$Year <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Spawn_temp_int3$Month <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Spawn_temp_int4 <- select(Spawn_temp_int3,-StdTime)
+
+#remove extra years i.e. <1985 and >2012
+Spawn_temp_int5 <- filter(Spawn_temp_int4,Year>1984&Year<2013)
+
+#calculate annual spawning and early incubation temperature 
+
+Spawn_temp_int6 <- filter(Spawn_temp_int5,Month==8|Month==9) 
+
+Spawn_temp_int7 <- Spawn_temp_int6 %>% 
+  group_by(Population,Year) %>% 
+  summarise(spawning_temp=mean(AirTemp_mnth))
+
+Spawn_temp_int8 <- Spawn_temp_int7
+
+Spawn_temp_int8$spawning_temp <- scale(Spawn_temp_int8$spawning_temp)
+
+#organize into matrix for analyses
+Spawn_temp_int9 <- Spawn_temp_int8 %>% 
+  spread(key=Year,value=spawning_temp)
+#checked popn order before slicing
+spawning_temp <- as.matrix(Spawn_temp_int9[2:29])
+
+ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
+  geom_point()+geom_smooth()+facet_wrap(~Population)
+
+write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
+
+
+##### Spawning and early incubation precipitation -------------------------------
+
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
+
+Spawn_prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
+
+Spawn_prcp_int2 <- select(Spawn_prcp_int1,SUB_DRAINA,StdTime,MEAN)
+Spawn_prcp_int3 <- rename(Spawn_prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+
+#pull out year and month columns
+
+Spawn_prcp_int3$Year <- as.numeric(format(as.Date(Spawn_prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Spawn_prcp_int3$Month <- as.numeric(format(as.Date(Spawn_prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Spawn_prcp_int4 <- select(Spawn_prcp_int3,-StdTime)
+
+#remove extra years i.e. <1985 and >2012
+Spawn_prcp_int5 <- filter(Spawn_prcp_int4,Year>1984&Year<2013)
+
+#calculate annual spawning and early incubation precipitation
+
+Spawn_prcp_int6 <- filter(Spawn_prcp_int5,Month==8|Month==9) 
+
+Spawn_prcp_int7 <- Spawn_prcp_int6 %>% 
+  group_by(Population,Year) %>% 
+  summarise(spawning_prcp=sum(Prcp_mnth))
+
+Spawn_prcp_int8 <- Spawn_prcp_int7
+
+Spawn_prcp_int8$spawning_prcp <- scale(Spawn_prcp_int8$spawning_prcp)
+
+#organize into matrix for analyses
+Spawn_prcp_int9 <- Spawn_prcp_int8 %>% 
+  spread(key=Year,value=spawning_prcp)
+#checked popn order before slicing
+spawning_prcp <- as.matrix(Spawn_prcp_int9[2:29])
+
+ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
+  geom_point()+geom_smooth()+facet_wrap(~Population)
+
+write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"),row.names=FALSE)
 
 
 ##### Maximum annual snow -----------------------------------------------------
@@ -378,13 +520,17 @@ Ice_for_corrl <- Ice_for_corrl_int2
 rearing_precip_for_corrl <- Prcp_int8
 rearing_temp_for_corrl <-Temp_int8
 annual_snowpack_for_corrl <- Swe_int6
+spawning_temp_for_corrl <- Spawn_temp_int7
+spawning_prcp_for_corrl <-Spawn_prcp_int7
 
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
 master_corrl <- left_join(master_corrl,Migtemp_t0_for_corrl)
 master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
-master_corrl <- master_corrl[,3:8]
+master_corrl <- left_join(master_corrl,spawning_temp_for_corrl)
+master_corrl <- left_join(master_corrl,spawning_prcp_for_corrl)
+master_corrl <- master_corrl[,3:10]
 
 cor.table <- cor(master_corrl)
 
@@ -392,13 +538,60 @@ library(corrplot)
 corrplot(cor.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
+ggplot(master_corrl,aes(y=rearing_prcp,x=rearing_temp))+
+  geom_point()+geom_smooth()+facet_wrap(~Population)
 
-#To do; check for missing data within each year and determine if needs estimation
-#TO DO: derive weekly maximums?
+#correlations by population
+
+Carmacks_master <- filter(master_corrl,Population=="Carmacks")
+Carmacks_master <- Carmacks_master[,3:10]
+Carmacks.table <- cor(Carmacks_master)
+corrplot(Carmacks.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Lower_Mainstem_master <- filter(master_corrl,Population=="Lower Mainstem")
+Lower_Mainstem_master <- Lower_Mainstem_master[,3:10]
+Lower_Mainstem.table <- cor(Lower_Mainstem_master)
+corrplot(Lower_Mainstem.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Middle_Mainstem_master <- filter(master_corrl,Population=="Middle Mainstem")
+Middle_Mainstem_master <- Middle_Mainstem_master[,3:10]
+Middle_Mainstem.table <- cor(Middle_Mainstem_master)
+corrplot(Middle_Mainstem.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Pelly_master <- filter(master_corrl,Population=="Pelly")
+Pelly_master <- Pelly_master[,3:10]
+Pelly.table <- cor(Pelly_master)
+corrplot(Pelly.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Stewart_master <- filter(master_corrl,Population=="Stewart")
+Stewart_master <- Stewart_master[,3:10]
+Stewart.table <- cor(Stewart_master)
+corrplot(Stewart.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Teslin_master <- filter(master_corrl,Population=="Teslin")
+Teslin_master <- Teslin_master[,3:10]
+Teslin.table <- cor(Teslin_master)
+corrplot(Teslin.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+Upper_Lakes_master <- filter(master_corrl,Population=="Upper Lakes and Mainstem")
+Upper_Lakes_master <- Upper_Lakes_master[,3:10]
+Upper_Lakes.table <- cor(Upper_Lakes_master)
+corrplot(Upper_Lakes.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
+
+White_Donjek_master <- filter(master_corrl,Population=="White Donjek")
+White_Donjek_master <- White_Donjek_master[,3:10]
+White_Donjek.table <- cor(White_Donjek_master)
+corrplot(White_Donjek.table, method="number",type = "upper", order = "hclust", 
+         tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 #other possible variables to include:
-#Mean precipitation during spawning and early incubation (Aug - Nov) in basin (t = 0)
-#Temperature for spawning/incubation in basin (t = 0)
 #Sea surface temp (t = +2, +3)
 #climate drivers (t = +2, +3)
 #hatchery fish (t = +2, +3)

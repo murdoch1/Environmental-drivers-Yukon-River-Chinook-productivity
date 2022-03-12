@@ -48,6 +48,15 @@ levels(MigTiming_intervals_int1$year) <- 1985:2019
 levels(MigTiming_intervals_int1$population) <- (c("LowerMainstem","White-Donjek","Pelly","Stewart","Carmacks","Teslin","MiddleMainstem","UpperMainstem"))
 
 #remove duplicates
-MigTiming_intervals <- distinct(MigTiming_intervals_int1)
+MigTiming_intervals_int2 <- distinct(MigTiming_intervals_int1)
+
+#add thirty day period from maximum
+MigTiming_intervals_int3 <- MigTiming_intervals_int2 %>% mutate(yday_30=yday_adj+30) %>% 
+  gather(stat,yday,3:4) %>% group_by(year,population) %>% summarize(yday_max=max(yday),yday_min=min(yday))
+
+library(purrr)
+
+MigTiming_intervals <- MigTiming_intervals_int3 %>%
+  mutate(yday= map2(yday_min, yday_max, seq)) %>% unnest(cols=yday) %>% select(-yday_min,-yday_max)
 
 write.csv(MigTiming_intervals,"Data/MigTiming_intervals.csv",row.names=FALSE)

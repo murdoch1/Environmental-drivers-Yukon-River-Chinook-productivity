@@ -25,8 +25,6 @@ brood_table <- read.csv(file.path(dir.data,"brood_table.csv"))
 #removing years without full recruitment estimates
 brood_table <- filter(brood_table,BroodYear<2013)
 
-#sort into matrices
-
 pops = sort(unique(brood_table$population))
 n.pops = length(pops)
 n.years = vector(length=n.pops)
@@ -36,27 +34,14 @@ p <- 1
 for(p in 1:n.pops) {
   n.years[p] <- length(unique(brood_table$BroodYear[brood_table$population==pops[p]]))
   years[p,1:n.years[p]] <- sort(unique(brood_table$BroodYear[brood_table$population==pops[p]]))
-}#next i
+}
 
-# Spawners and Recruits
-Spawners <- matrix(nrow=n.pops,ncol=max(n.years))
-Recruits <- matrix(nrow=n.pops,ncol=max(n.years))
-ln.Recruits <- matrix(nrow=n.pops,ncol=max(n.years))
+Spawners <- brood_table %>% select(population,BroodYear,S_med) %>% 
+ spread(BroodYear,S_med) %>% select(-population)
 
-p <- 1
-for(p in 1:n.pops) {
-  y <- 1
-  for(y in 1:n.years[p]) {
-    year <- years[p,y]
-    
-    #Spawners
-    Spawners[p,y] <- brood_table$S_med[brood_table$population==pops[p] & brood_table$BroodYear==year]
-    #Recruits
-    Recruits[p,y] <- brood_table$R_med[brood_table$population==pops[p] & brood_table$BroodYear==year]
-    ln.Recruits[p,y] <- log(brood_table$R_med[brood_table$population==pops[p] & brood_table$BroodYear==year])
-  }#next y
-}#next p
-
+ln.Recruits <- brood_table %>% select(population,BroodYear,R_med) %>% 
+  mutate(lnR_med=log(R_med)) %>% select(-R_med) %>% 
+  spread(BroodYear,lnR_med) %>% select(-population)
 
 #popn order is Carmacks, Lower Main, Middle Main, Pelly, Stewart, Teslin, Upper Lakes, White-Donjek
 
@@ -69,9 +54,15 @@ Migration_temp_returns <- read.csv(file.path(dir.data,"/Environmental data/Proce
 rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
 rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
 annual_snowpack <- read.csv(file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"))
+spawning_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"))
+spawning_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"))
 
 # Define covariate names
-names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","rearing_temp","rearing_prcp","annual_snowpack")
+names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","rearing_temp","rearing_prcp",
+                  "annual_snowpack","spawning_temp","spawning_prcp")
+
+names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","spawning_temp","rearing_prcp",
+                  "annual_snowpack")
 n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
@@ -81,7 +72,10 @@ covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 
 library(abind)
 
-covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,rearing_temp,rearing_prcp,annual_snowpack,along=3)
+covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,rearing_temp,rearing_prcp,
+                annual_snowpack,spawning_temp,spawning_prcp,along=3)
+covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,spawning_temp,rearing_prcp,
+                annual_snowpack,along=3)
 print(covars)
 
 
@@ -197,9 +191,10 @@ out <- jags.parallel(data=jags_data,
   inits=jags_inits,
   parameters.to.save=jags_params,
   n.chains=3, 
-  n.thin=200, 
-  n.iter=2e4, 
-  n.burnin=1e4)  
+  n.thin=20, 
+  n.iter=50000, 
+  n.burnin=20000)  
+
 
 #when iterations lowered get this error: Error in checkForRemoteErrors(val) : 
 #3 nodes produced errors; first error: n.iter must be a positive integer
@@ -222,7 +217,7 @@ diag_plots(as.mcmc(out), diag_p, ext_device = T)
 
 #Visualize results
 
-pdf(file="Plots/Results_MigTemp_returns_Mar8.pdf",width=9,height=6)
+pdf(file="Plots/Results.pdf",width=9,height=6)
 
 #Hyper means for covariates
 par(mfcol=c(2,3), mar=c(5,0,1,0), oma=c(1,1,3,1))
