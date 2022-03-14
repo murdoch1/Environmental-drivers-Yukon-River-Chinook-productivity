@@ -61,8 +61,7 @@ spawning_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/spaw
 names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","rearing_temp","rearing_prcp",
                   "annual_snowpack","spawning_temp","spawning_prcp")
 
-names.covars <- c("Ice_out","Migration_temp_t0","Migration_temp_returns","spawning_temp","rearing_prcp",
-                  "annual_snowpack")
+
 n.covars <- length(names.covars)
 
 covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
@@ -74,8 +73,7 @@ library(abind)
 
 covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,rearing_temp,rearing_prcp,
                 annual_snowpack,spawning_temp,spawning_prcp,along=3)
-covars <- abind(Ice_out,Migration_temp_t0,Migration_temp_returns,spawning_temp,rearing_prcp,
-                annual_snowpack,along=3)
+
 print(covars)
 
 

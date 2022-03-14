@@ -178,19 +178,14 @@ Emmonak_water_summary5  <- Emmonak_water_int9 %>%
 Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv"))
 
 #join to temperature data
-#note some years have missing data (see Temp_data_availability for comparison in main folder)
-#estimate later ?
-
 Emmonak_water_int10 <- Emmonak_water_int9 %>% 
   select(Project.Year,Temperature..avg.,julian_date) %>% 
   rename(year=Project.Year,yday=julian_date,water_temp=Temperature..avg.)
 
 Emmonak_water_int11 <- left_join(Timing_int1,Emmonak_water_int10)
 
-ggplot(Emmonak_water_int11,aes(y=water_temp,x=yday,))+
-  geom_point()+geom_smooth()+facet_wrap(~year)
-
-Emmonak_water_summary7  <- Emmonak_water_int11 %>% 
+#look at years with missing data
+Mig_NAs_summary  <- Emmonak_water_int11 %>% 
   group_by(year,population) %>% summarise(
     count = n(),
     min = min(yday),
@@ -198,41 +193,27 @@ Emmonak_water_summary7  <- Emmonak_water_int11 %>%
     minWT=min(water_temp,na.rm=TRUE),
     meanWT=mean(water_temp,na.rm=TRUE),
     maxWT=max(water_temp,na.rm=TRUE),
-    count(is.na()))
+    NA_col=(sum(is.na(water_temp)))) %>% 
+  mutate(prop_NA=NA_col/count*100)
 
+Mig_NAs_summary_int1 <- Mig_NAs_summary %>% select(year,population,prop_NA)
 
-#left off --- need to figure out the number of NA's in each calculation 
-#need to update the returning index temp and rerun
+Emmonak_water_int12 <- left_join(Emmonak_water_int11,Mig_NAs_summary_int1) %>% 
+  group_by(year,population) %>% summarise(count = n(),
+                                     water_temp=mean(water_temp,na.rm=TRUE),
+                                     prop_NA=mean(prop_NA))
 
-#calculate mean daily water temp during migration
+#for estimating population means - only use years with greater than 75% data availability
+Mig_temp_bypopn <- left_join(Emmonak_water_int11,Mig_NAs_summary_int1) %>% 
+  filter(prop_NA<25) %>% 
+  group_by(population) %>% summarise(meanWT=mean(water_temp,na.rm=TRUE))
 
-Emmonak_water_int12 <- Emmonak_water_int11 %>% 
-  group_by(year,population) %>% summarise(water_temp=mean(water_temp,na.rm=TRUE))
+#replace years with >50% NA's with population level means
 
-#remove extra years
-Emmonak_water_int13 <- filter(Emmonak_water_int12,year>1984&year<2020)
+Emmonak_water_int13 <- left_join(Emmonak_water_int12,Mig_temp_bypopn) %>% 
+  mutate(water_temp=if_else(prop_NA>50,meanWT,water_temp)) %>% 
+  select(-meanWT,-prop_NA,-count)
 
-Emmonak_water_summary8  <- Emmonak_water_int13 %>% 
-  group_by(population) %>% summarise(
-    count = n(),
-    meanWT=mean(water_temp,na.rm=TRUE))
-
-#add missing data
-Emmonak_water_int13[32,3] <- 12 #WD 1988
-Emmonak_water_int13[38,3] <- 14 #Teslin 1989
-Emmonak_water_int13[84,3] <- 14.5 #Pelly 1995
-Emmonak_water_int13[90,3] <- 8.2 #LM 1996
-Emmonak_water_int13[109,3] <- 14.7 #Stewart 1998
-Emmonak_water_int13[121,3] <- 15.1 #Carmacks 2000
-Emmonak_water_int13[122,3] <- 12.7 #LM 2000
-Emmonak_water_int13[123,3] <- 15.6 #MM 2000
-Emmonak_water_int13[124,3] <- 14.2 #Pelly 2000
-Emmonak_water_int13[125,3] <- 13.9 #Stewart 2000
-Emmonak_water_int13[126,3] <- 14.7 #Teslin 2000
-Emmonak_water_int13[127,3] <- 16.4 #UM 2000
-Emmonak_water_int13[128,3] <- 13.8 #WJ 2000
-Emmonak_water_int13[135,3] <- 14.4 #UM 2001
-Emmonak_water_int13[173,3] <- 11.5 #Stewart 2006
 
 #data for calculating return index
 write.csv(Emmonak_water_int13,file.path(dir.data,"/Environmental data/Processed/Migration_temp_unstd.csv"),row.names=FALSE)
@@ -407,7 +388,7 @@ spawning_temp <- as.matrix(Spawn_temp_int9[2:29])
 ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
   geom_point()+geom_smooth()+facet_wrap(~Population)
 
-write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
+write.csv(spawning_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
 
 
 ##### Spawning and early incubation precipitation -------------------------------
@@ -450,7 +431,7 @@ spawning_prcp <- as.matrix(Spawn_prcp_int9[2:29])
 ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
   geom_point()+geom_smooth()+facet_wrap(~Population)
 
-write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"),row.names=FALSE)
+write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"),row.names=FALSE)
 
 
 ##### Maximum annual snow -----------------------------------------------------
@@ -530,15 +511,18 @@ master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_temp_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_prcp_for_corrl)
-master_corrl <- master_corrl[,3:10]
+master_corrl_all <- master_corrl[,3:10]
 
-cor.table <- cor(master_corrl)
+cor.table <- cor(master_corrl_all)
 
 library(corrplot)
 corrplot(cor.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 ggplot(master_corrl,aes(y=rearing_prcp,x=rearing_temp))+
+  geom_point()+geom_smooth()+facet_wrap(~Population)
+
+ggplot(master_corrl,aes(y=rearing_prcp,x=spawning_prcp))+
   geom_point()+geom_smooth()+facet_wrap(~Population)
 
 #correlations by population
