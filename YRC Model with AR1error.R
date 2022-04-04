@@ -1,6 +1,8 @@
 
 ####  Multiple stressor YRC Bayes hierarchical SR model ####
 
+#tried AR1error code from Curry here but it's not working
+
 library(tidyverse)
 library(postpack)
 library(R2jags)
@@ -50,7 +52,6 @@ ln.Recruits <- brood_table %>% select(population,BroodYear,R_med) %>%
 
 Ice_out <- read.csv(file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"))
 Migration_temp_t0 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"))
-Migration_temp_returns <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"))
 rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
 rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
 annual_snowpack <- read.csv(file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"))
@@ -121,20 +122,28 @@ jags_model = function(){
     for(c in 1:n.covars) {
       coef[p,c] ~ dnorm(mu.coef[c],pow(sigma.coef[c],-2))
     }
+    # AR-1 Coeff
+    pre.phi[p] ~ dnorm(0,2)
+    phi[p] <-  2*exp(pre.phi[p])/(1+exp(pre.phi[p])) - 1
+    
   }#next p
   
-  #possible priors for autocorrelation if needed:
-  #Estimated to be shared among all populations.
-  #phi ~ dunif(-0.99, 0.99)
-  #log.resid.0 <- 0  # multi-stock model fixes this at zero
+
   
   #PREDICTIONS
   for(p in 1:n.pops) {
-    for(y in 1:n.years[p]) {
+    # First Year
+    for(c in 1:n.covars) {
+        cov.eff[p,1,c] <- coef[p,c]*covars[p,1,c]
+    }
+   #Subsequent Years
+     for(y in 2:n.years[p]) {
       
-      for(c in 1:n.covars) {
+       for(c in 1:n.covars) {
         cov.eff[p,y,c] <- coef[p,c]*covars[p,y,c]
       }
+      # Calculate Residual from previous time step
+      resid[p,y-1] <- lnRobs[p,y-1] - pred.rec[p,y-1]
       
       pred.rec[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
       
@@ -143,8 +152,12 @@ jags_model = function(){
   
   #LIKELIHOODS
   for(p in 1:n.pops) {
-    for(y in 1:n.years[p]) {
-      lnRobs[p,y] ~ dnorm(log(pred.rec[p,y]), pow(sigma.oe[p],-2))
+    
+    #First Year
+    lnRobs[p,1] ~ dnorm(log(pred.rec[p,1]), pow(sigma.oe[p],-2))
+    
+    for(y in 2:n.years[p]) {
+      lnRobs[p,y] ~ dnorm(log(pred.rec[p,y]) + phi[p]*resid[p,y-1], pow(sigma.oe[p],-2))
       
     }#next y
   }#next p
@@ -169,7 +182,7 @@ jags_inits = function() {
 #### Set nodes to monitor ####
 
 jags_params = c("alpha","exp.alpha", "beta", "sigma.oe","mu.coef","sigma.coef",
-                "coef","cov.eff","dist.coef","pred.rec")
+                "coef","cov.eff","dist.coef","pred.rec","phi")
 
 
 ##### Run the model with Jags #####
@@ -184,28 +197,13 @@ out <- jags.parallel(data=jags_data,
   n.iter=50000, 
   n.burnin=10000)  
 
-
-out <- jags.parallel(data=jags_data,
-  model.file=jags_model,
-  inits=jags_inits,
-  parameters.to.save=jags_params,
-  n.chains=3, 
-  n.thin=20, 
-  n.iter=150000, 
-  n.burnin=20000)  
+ 
 
 #Save
 saveRDS(out, file=file.path(dir.output,"out.rds"))
 
-out.mcmc <- as.mcmc(out)
-
-autocorr.plot(out.mcmc)
-autocorr.diag(out.mcmc)
-
 #Write Output File for Diagnostics
 write.csv(out$BUGSoutput$summary, file=file.path(dir.figs,"out_summary.csv"))
-
-res$BUGSoutput$summary
 
 ##### STEP 7: CONVERGENCE DIAGNOSTICS #####
 ## Code adapted from Intro to Bayesian Stats with JAGS course by Ben Staton ##
@@ -214,33 +212,14 @@ diag_p = c("cov.eff")
 
 
 # view convergence diagnostic summaries for nodes with priors
-diag <- t(post_summ(out.mcmc, diag_p, Rhat = T, neff = T)[c("Rhat", "neff"),])
-diag2 <- t(post_summ(as.mcmc(out), diag_p, Rhat = T, neff = T)[c("Rhat", "neff"),])
+diag <- t(post_summ(as.mcmc(out), diag_p, Rhat = T, neff = T)[c("Rhat", "neff"),])
 
 # view diagnostic plots
 diag_plots(as.mcmc(out), diag_p, ext_device = T)
 
+#Visualize results
 
-
-# Visualize results -------------------------------------------------------
-
-
-pops2=c("Carmacks","Lower Mainstem","Middle Mainstem","Pelly","Stewart","Teslin",
-        "Upper Mainstem","White-Donjek")
-
-pdf(file="Plots/ResultsAug.pdf",width=9,height=6)
-
-#Hyper means summarized
-par(mfcol=c(1,1), mar=c(2,12,3,1), oma=c(2,2,1,1))
-c <- 1
-  caterplot(out$BUGSoutput$sims.list$mu.coef,
-            labels=names.covars,reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), 
-            style='plain', col='blue',cex=1.1)
-caterpoints(apply(out$BUGSoutput$sims.list$mu.coef,2,median), pch=21, col='red', bg='orange')
-abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
-mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
-mtext('Covariate', side=2, outer=TRUE, font=2, line=0.5)
-
+pdf(file="Plots/Results2.pdf",width=9,height=6)
 
 #Hyper means for covariates
 par(mfcol=c(2,3), mar=c(5,0,1,0), oma=c(1,1,3,1))
@@ -252,28 +231,16 @@ for(c in 1:n.covars) {
 }
 
 #Population specific covariate "effects"
-par(mfcol=c(2,3), mar=c(2,7,3,1), oma=c(2,2,1,1))
+par(mfcol=c(2,3), mar=c(2,5,3,1), oma=c(2,2,1,1))
 c <- 1
 for(c in 1:n.covars) {
   caterplot(out$BUGSoutput$sims.list$coef[,,c],
-            labels=pops2, cex.labels=TRUE, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
+            labels=pops, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
   mtext(names.covars[c], side=3, outer=FALSE, line=1)
   caterpoints(apply(out$BUGSoutput$sims.list$coef[,,c],2,median), reorder=FALSE, pch=21, col='red', bg='orange')
   abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
 }
 mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
 mtext('Population', side=2, outer=TRUE, font=2, line=0.5)
+
 dev.off() 
-
-#Population specific covariate "effects"
-par(mfcol=c(1,1), mar=c(2,10,3,1), oma=c(2,2,1,1))
-c <- 1
-  caterplot(out$BUGSoutput$sims.list$coef[,,9],
-            labels=pops2, cex.labels=TRUE, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
-  mtext(names.covars[9], side=3, outer=FALSE, line=1)
-  caterpoints(apply(out$BUGSoutput$sims.list$coef[,,9],2,median), reorder=FALSE, pch=21, col='red', bg='orange')
-  abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
-mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
-mtext('Population', side=2, outer=TRUE, font=2, line=0.5)
-
-#save dims 1000 x 730

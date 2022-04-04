@@ -1,12 +1,16 @@
 
 ####  Multiple stressor YRC Bayes hierarchical SR model ####
 
+#tried adapting autocorrelation term here from Brendan's state space model
+
+
 library(tidyverse)
 library(postpack)
 library(R2jags)
 library(mcmcplots)
 library(bayesboot)
 library(lubridate)
+library(bayesplot)
 
 
 #Note that a lot of this code is copied/adapted from https://github.com/curryc2/Cook_Inlet_Chinook
@@ -50,7 +54,6 @@ ln.Recruits <- brood_table %>% select(population,BroodYear,R_med) %>%
 
 Ice_out <- read.csv(file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"))
 Migration_temp_t0 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"))
-Migration_temp_returns <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"))
 rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
 rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
 annual_snowpack <- read.csv(file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"))
@@ -116,6 +119,7 @@ jags_model = function(){
     alpha[p] <- log(exp.alpha[p])
     beta[p] ~ dnorm(0,pow(0.1,-2));T(0,100)
     sigma.oe[p] ~ dnorm(0, pow(1,-2));T(1e-3,100)
+    phi ~ dunif(-0.99, 0.99)
     
     #Covariate Effects
     for(c in 1:n.covars) {
@@ -123,10 +127,6 @@ jags_model = function(){
     }
   }#next p
   
-  #possible priors for autocorrelation if needed:
-  #Estimated to be shared among all populations.
-  #phi ~ dunif(-0.99, 0.99)
-  #log.resid.0 <- 0  # multi-stock model fixes this at zero
   
   #PREDICTIONS
   for(p in 1:n.pops) {
@@ -136,16 +136,17 @@ jags_model = function(){
         cov.eff[p,y,c] <- coef[p,c]*covars[p,y,c]
       }
       
-      pred.rec[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
-      
-        }#next y
+      pred.rec.1[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
+         }#next y
     }#next p
   
   #LIKELIHOODS
   for(p in 1:n.pops) {
     for(y in 1:n.years[p]) {
-      lnRobs[p,y] ~ dnorm(log(pred.rec[p,y]), pow(sigma.oe[p],-2))
-      
+      lnRobs[p,y] ~ dnorm(log(pred.rec.2[p,y]), pow(sigma.oe[p],-2))
+      pred.rec.2[p,y] <- pred.rec.1[p,y]+phi*resid[p,y-1]
+      resid[p,y] <- exp(lnRobs[p,y])-pred.rec.1[p,y]
+     
     }#next y
   }#next p
 }
@@ -169,7 +170,7 @@ jags_inits = function() {
 #### Set nodes to monitor ####
 
 jags_params = c("alpha","exp.alpha", "beta", "sigma.oe","mu.coef","sigma.coef",
-                "coef","cov.eff","dist.coef","pred.rec")
+                "coef","cov.eff","dist.coef","pred.rec.2","phi","resid")
 
 
 ##### Run the model with Jags #####
@@ -185,22 +186,10 @@ out <- jags.parallel(data=jags_data,
   n.burnin=10000)  
 
 
-out <- jags.parallel(data=jags_data,
-  model.file=jags_model,
-  inits=jags_inits,
-  parameters.to.save=jags_params,
-  n.chains=3, 
-  n.thin=20, 
-  n.iter=150000, 
-  n.burnin=20000)  
-
 #Save
 saveRDS(out, file=file.path(dir.output,"out.rds"))
 
-out.mcmc <- as.mcmc(out)
 
-autocorr.plot(out.mcmc)
-autocorr.diag(out.mcmc)
 
 #Write Output File for Diagnostics
 write.csv(out$BUGSoutput$summary, file=file.path(dir.figs,"out_summary.csv"))
