@@ -64,3 +64,42 @@ summary(mod1)
 r.squaredGLMM(mod1)
 visreg(mod1,gg=TRUE,points=list(size=2, pch=19),
        line=list(col="darkgray"),fill=list(fill="lightgray"))
+
+
+
+
+# BRT exploration ---------------------------------------------------------
+
+library(dismo)
+set.seed(1000)
+Prod.brt <- gbm.step(data=Env_prod,
+                   gbm.x=c(13:21),gbm.y=12,
+                   family="gaussian",tree.complexity = 5,
+                   learning.rate = 0.005,bag.fraction = 0.7)
+
+gbm.plot(Prod.brt,n.plots = 9,write.title=FALSE)
+
+
+#try simplifying the model
+set.seed(1000)
+Prod.brt.simp <- gbm.simplify(Prod.brt,n.drops = "auto")
+
+set.seed(1000)
+Prod.brt.simplified <- gbm.step(data=Env_prod,gbm.x=Prod.brt.simp$pred.list[[3]],
+                               gbm.y= 12,
+                               family="gaussian",
+                               tree.complexity = 5,learning.rate = 0.005,bag.fraction = 0.7)
+
+gbm.plot(Prod.brt.simplified,n.plots = 6,write.title=FALSE)
+
+
+Prod.int <- gbm.interactions (Prod.brt.simplified)
+Prod.int$rank.list
+
+gbm.perspec(Prod.brt.simplified,3,6,z.range=c(-2,2))
+#interaction between break up day and Winter SST
+
+Prod.int <- gbm.interactions (Prod.brt)
+Prod.int$rank.list
+
+gbm.perspec(Prod.brt.simplified,3,6,z.range=c(-2,2))
