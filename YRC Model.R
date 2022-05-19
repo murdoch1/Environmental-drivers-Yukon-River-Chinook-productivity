@@ -49,7 +49,7 @@ ln.Recruits <- brood_table %>% select(population,BroodYear,R_med) %>%
 # Merge covariate data ----------------------------------------------------
 
 Ice_out <- read.csv(file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"))
-Migration_temp_t0 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"))
+Migration_temp_t0 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Weekly_max_migration_temp_t0.csv"))
 Migration_temp_returns <- read.csv(file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"))
 rearing_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"))
 rearing_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"))
@@ -58,11 +58,13 @@ spawning_temp <- read.csv(file.path(dir.data,"/Environmental data/Processed/spaw
 spawning_prcp <- read.csv(file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"))
 SST_summer <- read.csv(file.path(dir.data,"/Environmental data/Processed/SST_summer.csv"))
 SST_winter <- read.csv(file.path(dir.data,"/Environmental data/Processed/SST_winter_new.csv"))
+Threshold17 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"))
 
 
 # Define covariate names
 names.covars <- c("Ice_out","Migration_temp_t0","rearing_temp","rearing_prcp",
-                  "annual_snowpack","spawning_temp","spawning_prcp","SST_summer","SST_winter")
+                  "annual_snowpack","spawning_temp","spawning_prcp","SST_summer","SST_winter",
+                  "Threshold17")
 
 
 n.covars <- length(names.covars)
@@ -75,7 +77,8 @@ covars <- array(data=NA,dim=c(n.pops, max(n.years), n.covars))
 library(abind)
 
 covars <- abind(Ice_out,Migration_temp_t0,rearing_temp,rearing_prcp,
-                annual_snowpack,spawning_temp,spawning_prcp,SST_summer,SST_winter,along=3)
+                annual_snowpack,spawning_temp,spawning_prcp,SST_summer,SST_winter,
+                Threshold17,along=3)
 
 print(covars)
 
@@ -228,7 +231,29 @@ diag_plots(as.mcmc(out), diag_p, ext_device = T)
 pops2=c("Carmacks","Lower Mainstem","Middle Mainstem","Pelly","Stewart","Teslin",
         "Upper Mainstem","White-Donjek")
 
-pdf(file="Plots/ResultsAug.pdf",width=9,height=6)
+labels2=c("Annual snowpack","Winter SST","Spawning temperature","Summer SST",
+          "Ice out date","Migration temperature","Rearing temperature","Spawning precip","Rearing precip")
+
+
+#rearrange variables
+
+mu.coef.vector <- out$BUGSoutput$sims.list$mu.coef
+mu.coef.vector.new <- mu.coef.vector[,c(5,9,6,8,1,2,3,7,4)]
+
+#Hyper means summarized in order of median effect
+par(mfcol=c(1,1), mar=c(2,12,3,1), oma=c(2,2,1,1))
+c <- 1
+  caterplot(out$BUGSoutput$sims.list$mu.coef,
+            labels=labels2,reorder=TRUE, quantiles=list(0.025,0.25,0.75,0.975), 
+            style='gray', col='blue',cex=1.1)
+caterpoints(apply(mu.coef.vector.new,2,median), pch=21, col='red', bg='orange')
+abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
+mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5,at=0.7)
+mtext('Covariate', side=2, outer=TRUE, font=2, line=0.5)
+
+#739x503 saved dimensions
+
+pdf(file="Plots/Results_threshold17.pdf",width=9,height=6)
 
 #Hyper means summarized
 par(mfcol=c(1,1), mar=c(2,12,3,1), oma=c(2,2,1,1))
@@ -269,11 +294,31 @@ dev.off()
 par(mfcol=c(1,1), mar=c(2,10,3,1), oma=c(2,2,1,1))
 c <- 1
   caterplot(out$BUGSoutput$sims.list$coef[,,9],
-            labels=pops2, cex.labels=TRUE, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
-  mtext(names.covars[9], side=3, outer=FALSE, line=1)
+            labels=pops2, cex=1.1, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
+  mtext("Winter SST", side=3, outer=FALSE, line=1,cex=1.1)
   caterpoints(apply(out$BUGSoutput$sims.list$coef[,,9],2,median), reorder=FALSE, pch=21, col='red', bg='orange')
   abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
-mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5)
+mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5,at=0.6)
 mtext('Population', side=2, outer=TRUE, font=2, line=0.5)
 
 #save dims 1000 x 730
+
+
+#Population specific covariate "effects" saved by migration temp order
+
+mig_temp <- out$BUGSoutput$sims.list$coef[,,2]
+mig_temp_new <- mig_temp[,c(2,8,5,4,6,7,1,3)]
+pops3=c("Lower Mainstem","White-Donjek","Stewart","Pelly","Teslin","Upper Mainstem","Carmacks","Middle Mainstem")
+  
+par(mfcol=c(1,1), mar=c(2,10,3,1), oma=c(2,2,1,1))
+c <- 1
+  caterplot(mig_temp_new,
+            labels=pops3, cex=1.1, reorder=FALSE, quantiles=list(0.025,0.25,0.75,0.975), style='plain', col='blue')
+  mtext("Migration temperature", side=3, outer=FALSE, line=1,cex=1.1)
+  caterpoints(apply(mig_temp_new,2,median), reorder=FALSE, pch=21, col='red', bg='orange')
+  abline(v=0, lty=1, lwd=2, col=rgb(1,0,0, alpha=0.5))
+mtext('Coefficient (Effect)', side=1, outer=TRUE, font=2, line=0.5,at=0.6)
+#740x528
+
+
+

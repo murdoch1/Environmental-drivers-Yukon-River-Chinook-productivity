@@ -43,198 +43,19 @@ write.csv(Ice_out,file.path(dir.data,"/Environmental data/Processed/Ice_out.csv"
 
 ####### Migration temperature using water temp data from Emmonak (t = 0)##########################################################################
 
-#data from https://www.adfg.alaska.gov/CF_R3/external/sites/aykdbms_website/DataSelection.aspx
-#search for Lower Yukon Test Fishing data
-
-Emmonak_water_int1a <- read.csv(file.path(dir.data,"/Environmental data/Raw/Emmonak Water Temp Data1.csv"))
-Emmonak_water_int1b <- read.csv(file.path(dir.data,"/Environmental data/Raw/Emmonak Water Temp Data2.csv"))
-Emmonak_water_int1a$Instrument.Site <- as.character(Emmonak_water_int1a$Instrument.Site)
-Emmonak_water_int1 <- bind_rows(Emmonak_water_int1a,Emmonak_water_int1b)
-
-#sampling locations across year change, look at summary
-
-Emmonak_water_summary1  <- Emmonak_water_int1 %>% 
-  group_by(Project.Year,Location) %>% count(Location)
-
-#two years missing middle mouth and one missing big eddy
-
-ggplot(Emmonak_water_summary1,aes(fill=Location,y=n,x=Project.Year))+
-  geom_bar(stat="identity",position="dodge")+scale_y_continuous(trans="log2")
-
-#sample timing differs too. before 2004 temperatures were only taken at 8 am and 8 pm
-#how many have 8 am and 8 pm?
-
-Emmonak_water_int2 <- Emmonak_water_int1 %>% 
-  select(-Time) %>% 
-  rename(Date_Time=Date) %>% 
-  separate(Date_Time, into = c("Date", "Time"), sep = " ", remove = FALSE) %>%
-  mutate(Date = lubridate::as_date(Date, format = "%Y-%m-%d"),
-         Time = hms::as_hms(str_c(Time, ":00")))
-#note missing date and time data just for one entry in 2014 gives warning message
-
-Emmonak_water_summary2  <- Emmonak_water_int2 %>% 
-  group_by(Project.Year,Location) %>% count(Time)
-
-#examining data before 2004
-Emmonak_water_summary3 <- filter(Emmonak_water_summary2,Project.Year<2004)
-
-ggplot(Emmonak_water_summary3,aes(fill=Location,y=n,x=Time))+
-  geom_bar(stat="identity",position="dodge")+facet_wrap(~Project.Year)
-
-#most consistent data collection is for Big Eddy data at 8 AM. Will be missing for three years:
-#1990 was only middle mouth, 1995 not sampled at 8 AM, 2003 also only sampled at MM
-
-#detour to examine differences for later replacement
-
-#1. Look at significant differences between AM and PM samples for Big Eddy and adjust for missing morning samples in 1995
-Emmonak_water_int2$Time <- as.character(Emmonak_water_int2$Time)
-AM_PM_int1 <- Emmonak_water_int2 %>%
-  filter((Time=="08:00:00"|Time=="08:01:00"|Time=="20:00:00")&Location=="Big Eddy") %>% 
-  select(Date,Time,Temperature..avg.) %>% 
-  mutate(Time = as.factor(case_when(Time=="20:00:00"  ~ "Evening",
-                             Time %in% c("08:00:00","08:01:00") ~ "Morning"))) 
-
-AM_PM_int2 <- AM_PM_int1 %>% 
-  group_by(Date,Time) %>% 
-  summarize(water_temp = mean(Temperature..avg.))
-
-AM_PM_compare <- AM_PM_int2 %>% spread(Time,water_temp)
-
-#visualize differences
-ggplot(AM_PM_compare,aes(y=Evening,x=Morning))+
-  geom_point()+geom_smooth()
-
-ggplot(AM_PM_int2,aes(y=water_temp,x=Time))+
-  geom_boxplot()
-
-#model differences
-temp_time <- summary(lm(Morning~Evening,data=AM_PM_compare))
-temp_time
-
-#morning temps can be calculated using the linear model y = 0.980783*x + 0.021345
-
-#2. Look at significant differences between Big Eddy and Middle Mouth samples for years with missing Big Eddy
-
-BE_MM_compare_int1 <- Emmonak_water_int2 %>% 
-  filter(Time=="08:00:00"|Time=="08:01:00") %>% 
-  select(Location,Date,Temperature..avg.) 
-
-BE_MM_compare_int2 <- BE_MM_compare_int1 %>% 
-  group_by(Location,Date) %>% 
-  summarize(water_temp = mean(Temperature..avg.)) 
-
-BE_MM_compare <- BE_MM_compare_int2 %>% spread(Location,water_temp) %>% 
-  rename(Middle_Mouth="Middle Mouth",Big_Eddy="Big Eddy")
-
-#visualize differences
-ggplot(BE_MM_compare,aes(y=Middle_Mouth,x=Big_Eddy))+
-  geom_point()+geom_smooth(method = "lm")
-
-ggplot(BE_MM_compare_int2,aes(y=water_temp,x=Location))+
-  geom_boxplot()
-
-#model differences
-temp_location <- summary(lm(Big_Eddy~Middle_Mouth,data=BE_MM_compare))
-temp_location
-
-#Big Eddy missing temps can be calculated using the linear model y = 0.80138*x + 3.02411
-
-#Continue data processing
-Emmonak_water_int3 <- filter(Emmonak_water_int2,Time=="08:00:00"|Time=="08:01:00")
-
-Emmonak_water_summary4  <- Emmonak_water_int3 %>% 
-  group_by(Project.Year,Location) %>% count(Time)
-
-ggplot(Emmonak_water_summary4,aes(fill=Location,y=n,x=Location))+
-  geom_bar(stat="identity",position="dodge")+facet_wrap(~Project.Year)
-
-#extract Big Eddy
-Emmonak_water_int4 <- filter(Emmonak_water_int3,Location=="Big Eddy")
-
-#extract MM for 1990 and 2003 and adjust based on linear model
-Emmonak_water_int5 <- Emmonak_water_int3 %>% filter(Location=="Middle Mouth"&Project.Year=="1990"|
-    Location=="Middle Mouth"&Project.Year=="2003") %>% 
-    mutate(Temperature..avg.=Temperature..avg.*0.80138+3.02411)
-
-#extract 8 PM for Big Eddy in 1995 and adjust based on linear model
-Emmonak_water_int6 <- Emmonak_water_int2 %>% 
-  filter(Time=="20:00:00"&Location=="Big Eddy"&Project.Year=="1995") %>% 
-  mutate(Temperature..avg.=Temperature..avg.*0.980783+0.021345)
+#Migration temp processing in Calculating Migration Temperature.R
 
 
-#bind dataframes together
-Emmonak_water_int7 <- bind_rows(Emmonak_water_int4,Emmonak_water_int5,Emmonak_water_int6)
+#Max weekly temp
+Weekly_mig_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Max_weekly_migration_temp_unstd.csv"))
 
-#add julian date
-Emmonak_water_int8 <- mutate(Emmonak_water_int7,julian_date=yday(Date))
+Weekly_mig_temp_int2 <- filter(Weekly_mig_temp_int1,year<2013)
 
-ggplot(Emmonak_water_int8,aes(y=Temperature..avg.,x=julian_date))+
-  geom_point()+geom_smooth()+facet_wrap(~Project.Year)
-
-Emmonak_water_int9 <- filter(Emmonak_water_int8,Temperature..avg.!="NA")
-
-Emmonak_water_summary5  <- Emmonak_water_int9 %>% 
-  group_by(Project.Year) %>% summarise(
-    count = n(),
-    min = min(julian_date),
-    max=max(julian_date))
-
-
-
-
-#adjust migration interval by population and year using derived passage timing from population diversity paper
-
-Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv"))
-
-#join to temperature data
-Emmonak_water_int10 <- Emmonak_water_int9 %>% 
-  select(Project.Year,Temperature..avg.,julian_date) %>% 
-  rename(year=Project.Year,yday=julian_date,water_temp=Temperature..avg.)
-
-Emmonak_water_int11 <- left_join(Timing_int1,Emmonak_water_int10)
-
-#look at years with missing data
-Mig_NAs_summary  <- Emmonak_water_int11 %>% 
-  group_by(year,population) %>% summarise(
-    count = n(),
-    min = min(yday),
-    max=max(yday),
-    minWT=min(water_temp,na.rm=TRUE),
-    meanWT=mean(water_temp,na.rm=TRUE),
-    maxWT=max(water_temp,na.rm=TRUE),
-    NA_col=(sum(is.na(water_temp)))) %>% 
-  mutate(prop_NA=NA_col/count*100)
-
-Mig_NAs_summary_int1 <- Mig_NAs_summary %>% select(year,population,prop_NA)
-
-Emmonak_water_int12 <- left_join(Emmonak_water_int11,Mig_NAs_summary_int1) %>% 
-  group_by(year,population) %>% summarise(count = n(),
-                                     water_temp=mean(water_temp,na.rm=TRUE),
-                                     prop_NA=mean(prop_NA))
-
-#for estimating population means - only use years with greater than 75% data availability
-Mig_temp_bypopn <- left_join(Emmonak_water_int11,Mig_NAs_summary_int1) %>% 
-  filter(prop_NA<25) %>% 
-  group_by(population) %>% summarise(meanWT=mean(water_temp,na.rm=TRUE))
-
-#replace years with >50% NA's with population level means
-
-Emmonak_water_int13 <- left_join(Emmonak_water_int12,Mig_temp_bypopn) %>% 
-  mutate(water_temp=if_else(prop_NA>50,meanWT,water_temp)) %>% 
-  select(-meanWT,-prop_NA,-count)
-
-
-#data for calculating return index
-write.csv(Emmonak_water_int13,file.path(dir.data,"/Environmental data/Processed/Migration_temp_unstd.csv"),row.names=FALSE)
-
-
-Emmonak_water_int13 <- filter(Emmonak_water_int13,year<2013)
-
-ggplot(Emmonak_water_int13,aes(y=water_temp,x=population))+
- geom_boxplot()
-
-ggplot(Emmonak_water_int13,aes(y=water_temp,x=population))+
-  geom_boxplot()+ylab("Migration temperature")+xlab("Population")+theme_bw()+
+weekly_migration_temp_plot <- Weekly_mig_temp_int2 %>% 
+  mutate(population=fct_relevel(population,"LowerMainstem","White-Donjek","Stewart","Pelly",
+                                "Teslin","UpperMainstem","Carmacks","MiddleMainstem")) %>% 
+ggplot(aes(y=water_temp,x=population))+
+  geom_boxplot()+ylab("Weekly max mig temp (°C)")+xlab("Population")+theme_bw()+
   scale_x_discrete(labels=c("Carmacks"="Carmacks","UpperMainstem"="Upper","LowerMainstem"="Lower",
                      "Pelly"="Pelly","Stewart"="Stewart","White-Donjek"="White",
                      "Teslin"="Teslin","MiddleMainstem"="Middle"))+
@@ -244,35 +65,82 @@ ggplot(Emmonak_water_int13,aes(y=water_temp,x=population))+
 
 
 #standardize
-Emmonak_water_int14 <- Emmonak_water_int13
-Emmonak_water_int14$water_temp <- scale(Emmonak_water_int14$water_temp)
+Weekly_mig_temp_int3 <- Weekly_mig_temp_int2
+Weekly_mig_temp_int3$water_temp <- scale(Weekly_mig_temp_int3$water_temp)
 
-Migration_temp_t0 <- Emmonak_water_int14 %>%  
+Weekly_migration_temp_t0 <- Weekly_mig_temp_int3 %>%  
   spread(year,water_temp) %>% select(-population)
 
-write.csv(Migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Migration_temp_t0.csv"),row.names=FALSE)
+write.csv(Weekly_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Weekly_max_migration_temp_t0.csv"),row.names=FALSE)
 
+
+
+
+#Mean daily temp
+Daily_mig_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Mean_daily_migration_temp_unstd.csv"))
+
+Daily_mig_temp_int2 <- filter(Daily_mig_temp_int1,year<2013)
+
+Daily_migration_temp_plot <- Daily_mig_temp_int2 %>% 
+  mutate(population=fct_relevel(population,"LowerMainstem","White-Donjek","Stewart","Pelly",
+                                "Teslin","UpperMainstem","Carmacks","MiddleMainstem")) %>% 
+ggplot(aes(y=water_temp,x=population))+
+  geom_boxplot()+ylab("Daily mig temp (°C)")+xlab("Population")+theme_bw()+
+  scale_x_discrete(labels=c("Carmacks"="Carmacks","UpperMainstem"="Upper","LowerMainstem"="Lower",
+                     "Pelly"="Pelly","Stewart"="Stewart","White-Donjek"="White",
+                     "Teslin"="Teslin","MiddleMainstem"="Middle"))+
+  theme(text = element_text(size=25),axis.text=element_text(size=15),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+
+#standardize
+Daily_mig_temp_int3 <- Daily_mig_temp_int2
+Daily_mig_temp_int3$water_temp <- scale(Daily_mig_temp_int3$water_temp)
+
+Daily_migration_temp_t0 <- Daily_mig_temp_int3 %>%  
+  spread(year,water_temp) %>% select(-population)
+
+write.csv(Daily_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Daily_migration_temp_t0.csv"),row.names=FALSE)
+
+
+#day of run that exceeds 17 degrees
+
+
+Thres17_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"))
+
+Thres17_int2 <- filter(Thres17_int1,year<2013)
+
+
+#standardize
+Thres17_int3 <- Thres17_int2
+Thres17_int3$run_day <- scale(Thres17_int3$run_day)
+
+Threshold17 <- Thres17_int3 %>%  select(year,population,run_day) %>% 
+  spread(year,run_day) %>% select(-population)
+
+write.csv(Threshold17,file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"),row.names=FALSE)
 
 
 ##### Migration temperature (RETURN INDEX) ------------------------------------
 
-Migration_temp_returns_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns_unformatted.csv"))
-Migration_temp_returns_int1 <- Migration_temp_returns_int1 %>% 
-  select(-water_temp,-prop_4,-prop_5,-prop_6,-prop_7) %>% 
-  rename(water_temp="Mig_temp_returns")
-
-#standardize
-Migration_temp_returns_int2 <- Migration_temp_returns_int1
-Migration_temp_returns_int2$water_temp <- scale(Migration_temp_returns_int2$water_temp)
-
-ggplot(Migration_temp_returns_int1,aes(y=water_temp,x=Population))+
- geom_boxplot()
-
-Migration_temp_returns <- Migration_temp_returns_int2 %>% 
-  spread(year,water_temp) %>% select(-Population)
-
-write.csv(Migration_temp_returns,file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"),row.names=FALSE)
-
+# Migration_temp_returns_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/MigTemp_returns_unformatted.csv"))
+# Migration_temp_returns_int1 <- Migration_temp_returns_int1 %>% 
+#   select(-water_temp,-prop_4,-prop_5,-prop_6,-prop_7) %>% 
+#   rename(water_temp="Mig_temp_returns")
+# 
+# #standardize
+# Migration_temp_returns_int2 <- Migration_temp_returns_int1
+# Migration_temp_returns_int2$water_temp <- scale(Migration_temp_returns_int2$water_temp)
+# 
+# ggplot(Migration_temp_returns_int1,aes(y=water_temp,x=Population))+
+#  geom_boxplot()
+# 
+# Migration_temp_returns <- Migration_temp_returns_int2 %>% 
+#   spread(year,water_temp) %>% select(-Population)
+# 
+# write.csv(Migration_temp_returns,file.path(dir.data,"/Environmental data/Processed/Migration_temp_returns.csv"),row.names=FALSE)
+# 
 
 
 ##### Juvenile rearing temperature ------------------------------------------------
@@ -427,7 +295,6 @@ Spawn_temp_int4 <- select(Spawn_temp_int3,-StdTime)
 Spawn_temp_int5 <- filter(Spawn_temp_int4,Year>1984&Year<2013)
 
 #calculate annual spawning and early incubation temperature 
-
 Spawn_temp_int6 <- filter(Spawn_temp_int5,Month==8|Month==9) 
 
 Spawn_temp_int7 <- Spawn_temp_int6 %>% 
@@ -581,19 +448,81 @@ write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annu
 
 ##### SST ---------------------------------------------------------------------
 
-#Bering Sea data - time series not long enough
-MaySST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/MaySST.csv")) %>% select(-"ï..OID_")
-M2SST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/M2SST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
-PISST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/PISST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
-NEBtrawl_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Northeastern Bering Sea Trawl Temps.csv"))
+# #Bering Sea data - time series not long enough
+# MaySST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/MaySST.csv")) %>% select(-"ï..OID_")
+# M2SST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/M2SST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
+# PISST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/PISST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
+# NEBtrawl_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Northeastern Bering Sea Trawl Temps.csv"))
+# 
+# SST_all <- full_join(MaySST_int1,M2SST_int1)
+# SST_all <- full_join(SST_all,PISST_int1)
+# 
+# SST_all$Year <- as.numeric(format(as.Date(SST_all$time, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# 
+# SST_all <- SST_all %>% select(-time) %>% 
+#   left_join(NEBtrawl_int1)
+# 
+# #compare NOAA SST to Pribilof data
+# Prib_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pribilof_SST.csv")) %>% 
+#   select(StdTime,sst)
+# 
+# Prib_int1$Year <- as.numeric(format(as.Date(Prib_int1$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# Prib_int1$Month <- as.numeric(format(as.Date(Prib_int1$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+# 
+# Prib_winter_int1 <- Prib_int1 %>% group_by(Year) %>% 
+#   filter(Month=="1"|Month=="2"|Month=="3") %>%
+#   summarise(Winter_SST=mean(sst))
+# 
+# SST_all <- left_join(SST_all,Prib_winter_int1)
+# 
+# ggplot(SST_all,aes(y=oc_PISST_SSTanom,x=Winter_SST))+
+#   geom_point(size=2)+geom_smooth(method="lm")
+# 
+# summary(lm(oc_PISST_SSTanom~Winter_SST,data=SST_all))
+# 
+# #index to first winter in marine environment
+# 
+# Prib_winter_int2 <- Prib_winter_int1 %>%
+#   mutate(Year2 = Year-3) %>%
+#   select(-Year) %>%
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Prib_winter_int3 <- filter(Prib_winter_int2,Year>1984&Year<2013)
+# 
+# #standardize
+# Prib_winter_int4 <- t(scale(Prib_winter_int3$Winter_SST))
+# 
+# #copy rows down
+# Prib_winter <- Prib_winter_int4[rep(seq_len(nrow(Prib_winter_int4)),each=8),]
+# 
+# write.csv(Prib_winter,file.path(dir.data,"/Environmental data/Processed/SST_Prib_winter.csv"),row.names=FALSE)
+# 
+# #estimate Pribilof data with NOAA extra years
+# 
+# Prib_new_winter_int1 <- left_join(Prib_winter_int1,SST_all) %>% select(Year,Winter_SST,oc_PISST_SSTanom)
+# 
+# Prib_new_winter_int2 <- Prib_new_winter_int1 %>% 
+#   mutate(New_Winter_SST=if_else(is.na(oc_PISST_SSTanom),(-8.9870+2.7645*Winter_SST),oc_PISST_SSTanom))
+# 
+# #index to first winter in marine environment
+# 
+# Prib_new_winter_int3 <- Prib_new_winter_int2 %>%
+#   mutate(Year2 = Year-3) %>%
+#   select(-Year) %>%
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Prib_new_winter_int4 <- filter(Prib_new_winter_int3,Year>1984&Year<2013)
+# 
+# #standardize
+# Prib_new_winter_int5 <- t(scale(Prib_new_winter_int4$New_Winter_SST))
+# 
+# #copy rows down
+# Prib_new_winter <- Prib_new_winter_int5[rep(seq_len(nrow(Prib_new_winter_int5)),each=8),]
+# 
+# write.csv(Prib_new_winter,file.path(dir.data,"/Environmental data/Processed/SST_Prib_new_winter.csv"),row.names=FALSE)
 
-SST_all <- full_join(MaySST_int1,M2SST_int1)
-SST_all <- full_join(SST_all,PISST_int1)
-
-SST_all$Year <- as.numeric(format(as.Date(SST_all$time, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
-
-SST_all <- SST_all %>% select(-time) %>% 
-  left_join(NEBtrawl_int1)
 
 #NOAA SST derived for Northern Bering Sea less than 50m
 SST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/SST_monthly.csv")) %>% 
@@ -664,19 +593,21 @@ write.csv(SST_summer,file.path(dir.data,"/Environmental data/Processed/SST_summe
 #NOAA data precalculated for northern and southern bering sea
 #https://www.fisheries.noaa.gov/resource/data/current-sea-surface-temperatures-eastern-bering-sea-gulf-alaska-and-aleutian-islands
 
-SSTnew_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/BS-SST-2022-03-25.csv"))
+#SSTnew_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/BS-SST-2022-03-25.csv"))
 
+SEBS_SST_int1<- read.csv(file.path(dir.data,"/Environmental data/Raw/Bering_Shelf_SST.csv"))%>% 
+  select(StdTime,MEAN)
 
 #winter SST
-SEBS_SST_int1 <- SSTnew_int1 %>% filter(Ecosystem_sub=="Southeastern Bering Sea") %>% 
-  select(date,meansst)
+# SEBS_SST_int1 <- SSTnew_int1 %>% filter(Ecosystem_sub=="Southeastern Bering Sea") %>% 
+#   select(date,meansst)
 
-SEBS_SST_int1$Year <- as.numeric(format(as.Date(SEBS_SST_int1$date, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
-SEBS_SST_int1$Month <- as.numeric(format(as.Date(SEBS_SST_int1$date, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+SEBS_SST_int1$Year <- as.numeric(format(as.Date(SEBS_SST_int1$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+SEBS_SST_int1$Month <- as.numeric(format(as.Date(SEBS_SST_int1$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
 
 SEBS_SST_int2 <- SEBS_SST_int1 %>% group_by(Year) %>% 
   filter(Month=="1"|Month=="2"|Month=="3") %>% 
-  summarise(Winter_SST=mean(meansst))
+  summarise(Winter_SST=mean(MEAN))
 
 #view trend
 ggplot(SEBS_SST_int2,aes(y=Winter_SST,x=Year))+
@@ -738,20 +669,43 @@ write.csv(SST_winter_new,file.path(dir.data,"/Environmental data/Processed/SST_w
 # write.csv(SST_summer_new,file.path(dir.data,"/Environmental data/Processed/SST_summer_new.csv"),row.names=FALSE)
 
 
+##### cold pool ---------------------------------------------------------------------
+
+#Bering Sea data - time series not long enough
+Coldpool_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/ColdPool.csv"))
+
+#index to first summer in marine environment
+
+Coldpool_int2 <- Coldpool_int1 %>% 
+  mutate(Year2 = Year-2) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Coldpool_int3 <- filter(Coldpool_int2,Year>1984&Year<2013)
+
+#standardize
+Coldpool_int4 <- t(scale(as.numeric(Coldpool_int3$Value)))
+
+#copy rows down
+Coldpool <- Coldpool_int4[rep(seq_len(nrow(Coldpool_int4)),each=8),]
+
+write.csv(Coldpool,file.path(dir.data,"/Environmental data/Processed/Coldpool.csv"),row.names=FALSE)
+
 # Checking correlations between vars -----------------------------------------------
 
 #wrangling to long data
-Migtemp_t0_for_corrl <- rename(Emmonak_water_int13,Year="year",migtemp_t0="water_temp",Population="population")
+Migtemp_t0_for_corrl <- rename(Daily_mig_temp_int2,Year="year",migtemp_t0="water_temp",Population="population")
 Migtemp_t0_for_corrl$Population <- as.factor(Migtemp_t0_for_corrl$Population)
 levels(Migtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 
 
-Migtemp_returns_for_corrl <- rename(Migration_temp_returns_int1,Year="year",migtemp_returns="water_temp")
-Migtemp_returns_for_corrl$Population <- as.factor(Migtemp_returns_for_corrl$Population)
-levels(Migtemp_returns_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
-                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+# Migtemp_returns_for_corrl <- rename(Migration_temp_returns_int1,Year="year",migtemp_returns="water_temp")
+# Migtemp_returns_for_corrl$Population <- as.factor(Migtemp_returns_for_corrl$Population)
+# levels(Migtemp_returns_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+#                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 Ice_for_corrl_int1 <- data.frame(rename(Ice_int2,Breakup_day="Julian_day"))
 Ice_for_corrl_int2 <- select(Ice_for_corrl_int1,-Date)
@@ -769,14 +723,14 @@ SST_summer_for_corrl <- SST_summer_int3
 
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
 master_corrl <- left_join(master_corrl,Migtemp_t0_for_corrl)
-master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
+#master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_temp_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_prcp_for_corrl)
 master_corrl <- left_join(master_corrl,SST_winter_for_corrl)
 master_corrl <- left_join(master_corrl,SST_summer_for_corrl)
-master_corrl_all <- master_corrl[,3:12]
+master_corrl_all <- master_corrl[,3:11]
 
 write.csv(master_corrl,file.path(dir.data,"/Environmental data/Processed/all_env_unstd.csv"),row.names=FALSE)
 

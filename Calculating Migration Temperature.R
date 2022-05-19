@@ -470,8 +470,15 @@ ggplot(Emmonak_water_int16,aes(y=water_temp,x=yday,color=population))+
 
 #Mig_temp_int5b <- left_join(Mig_temp_int5,Mig_temp_summary)
 
+#daily migration temp
 
-#try max weekly temps
+Mean_Mig_temp_int1 <- Emmonak_water_int16 %>% group_by(year,population) %>% 
+  summarise(water_temp=mean(water_temp))
+
+write.csv(Mean_Mig_temp_int1,file.path(dir.data,"/Environmental data/Processed/Mean_daily_migration_temp_unstd.csv"),row.names=FALSE)
+
+
+#max weekly migration temp
 
 Emmonak_water_int16_summary <- Emmonak_water_int16 %>% 
   group_by(year,population) %>% summarise(max_temp=max(water_temp))
@@ -484,14 +491,26 @@ Mig_temp_int2 <- Mig_temp_int1  %>% group_by(year,population) %>%
 
 write.csv(Mig_temp_int2,file.path(dir.data,"/Environmental data/Processed/Max_weekly_migration_temp_unstd.csv"),row.names=FALSE)
 
-#other things to try?
 #first day when river temperature exceeded a specific threshold
-#day of year vs day of run
-#try 17
 
-Threshold17_int1 <- Emmonak_water_int16 %>% filter(water_temp>=17) %>% arrange(yday) %>%
-  group_by(year,population) %>% slice(1) %>% rename(yday17=yday) %>% select(year,population,yday17)
+Threshold17_int1 <- Emmonak_water_int16 %>% arrange(year,population,yday) %>%
+  group_by(year,population) %>% mutate(run_day=1:n(),count=n()) 
+  
+#add final day of run for those that don't cross 17
 
-#add day of run
-#left join these
+Threshold17_int2 <- Threshold17_int1 %>% filter(count==33) %>% 
+  mutate(new_temp=if_else(run_day<33,water_temp,17))
+
+Threshold17_int3 <- Threshold17_int1 %>% filter(count==34) %>% 
+  mutate(new_temp=if_else(run_day<34,water_temp,17))
+
+Threshold17_int4 <- bind_rows(Threshold17_int2,Threshold17_int3) %>% arrange(year,population,yday) %>%
+  group_by(year,population) %>% filter(new_temp>=17) %>% 
+    slice(1) %>% rename(yday17=yday) %>% select(year,population,yday17,run_day)
+
+ggplot(Threshold17_int4,aes(y=run_day,x=year))+
+  geom_point()+geom_smooth() + facet_wrap(~population)
+
+write.csv(Threshold17_int4,file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"),row.names=FALSE)
+
 
