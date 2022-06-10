@@ -64,6 +64,13 @@ ggplot(aes(y=water_temp,x=population))+
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
 
+#view trend
+ggplot(Weekly_mig_temp_int2 ,aes(y=water_temp,x=year))+
+  geom_point(size=2)+geom_smooth()+ylab("Migration temperature (°C)")+theme_bw()+facet_wrap(~population)+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
 #standardize
 Weekly_mig_temp_int3 <- Weekly_mig_temp_int2
 Weekly_mig_temp_int3$water_temp <- scale(Weekly_mig_temp_int3$water_temp)
@@ -104,10 +111,29 @@ Daily_migration_temp_t0 <- Daily_mig_temp_int3 %>%
 write.csv(Daily_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Daily_migration_temp_t0.csv"),row.names=FALSE)
 
 
+#day of year that exceeds 17 degrees
+
+
+Thres17_yday_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
+
+Thres17_yday_int2 <- filter(Thres17_yday_int1,year<2013)
+
+
+#standardize
+Thres17_yday_int3 <- Thres17_yday_int2
+Thres17_yday_int3$yday17 <- scale(Thres17_yday_int3$yday17)
+
+Threshold17_yday <- Thres17_yday_int3 %>%  select(year,population,yday17) %>% 
+  spread(year,yday17) %>% select(-population)
+
+write.csv(Threshold17_yday,file.path(dir.data,"/Environmental data/Processed/Threshold17_yday.csv"),row.names=FALSE)
+
+
+
 #day of run that exceeds 17 degrees
 
 
-Thres17_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"))
+Thres17_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
 
 Thres17_int2 <- filter(Thres17_int1,year<2013)
 
@@ -119,7 +145,22 @@ Thres17_int3$run_day <- scale(Thres17_int3$run_day)
 Threshold17 <- Thres17_int3 %>%  select(year,population,run_day) %>% 
   spread(year,run_day) %>% select(-population)
 
-write.csv(Threshold17,file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"),row.names=FALSE)
+write.csv(Threshold17,file.path(dir.data,"/Environmental data/Processed/Threshold17_runday.csv"),row.names=FALSE)
+
+#number of days exceeding 17 degrees
+
+Thres17_count_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_numberdays_unstd.csv"))
+
+Thres17_count_int2 <- filter(Thres17_count_int1,year<2013)
+
+#standardize
+Thres17_count_int3 <- Thres17_count_int2
+Thres17_count_int3$count <- scale(Thres17_count_int3$count)
+
+Threshold17_count <- Thres17_count_int3 %>%  dplyr::select(year,population,count) %>% 
+  spread(year,count) %>% dplyr::select(-population)
+
+write.csv(Threshold17_count,file.path(dir.data,"/Environmental data/Processed/Threshold17_count.csv"),row.names=FALSE)
 
 
 ##### Migration temperature (RETURN INDEX) ------------------------------------
@@ -327,6 +368,36 @@ ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
   geom_point()+geom_smooth()+facet_wrap(~Population)
 
 write.csv(spawning_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
+
+
+
+#using air temperatures at Brown et al spawning sites
+
+
+Brown_air_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/spawning_temp_non_weighted.csv"))
+
+
+#view trend
+ggplot(Brown_air_int1,aes(y=tmean14,x=year))+
+  geom_point(size=2)+geom_smooth()+ylab("Spawning air temperature (°C)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Brown_air_int2 <- Brown_air_int1 %>% select(subbasin,year,tmean14) %>% filter(year<2013) 
+
+Brown_air_int3 <- Brown_air_int2
+
+Brown_air_int3$tmean14 <- scale(Brown_air_int3$tmean14)
+
+#organize into matrix for analyses
+Brown_air_int4 <- Brown_air_int3 %>% 
+  spread(key=year,value=tmean14)
+#checked popn order before slicing
+spawning_brown_air_temp <- as.matrix(Brown_air_int4[2:29])
+
+write.csv(spawning_brown_air_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp2.csv"),row.names=FALSE)
+
 
 
 ##### Spawning and early incubation precipitation -------------------------------
@@ -692,12 +763,84 @@ Coldpool <- Coldpool_int4[rep(seq_len(nrow(Coldpool_int4)),each=8),]
 
 write.csv(Coldpool,file.path(dir.data,"/Environmental data/Processed/Coldpool.csv"),row.names=FALSE)
 
+
+
+##### YR discharge at Eagle ---------------------------------------------------
+
+YRdischarge_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Eagle_YR_discharge_monthly.csv"))
+
+
+YRdischarge_int2 <- YRdischarge_int1 %>% mutate(year=as.numeric(substr(MM..YYYY,5,9)),
+                                                month=as.numeric(substr(MM..YYYY,1,2))) %>% 
+  filter(month==7) %>% dplyr::select(Value,year) %>% rename(discharge=Value) %>% 
+  filter(year>1984&year<2013)
+
+
+#standardize
+YRdischarge_int3 <- t(scale(as.numeric(YRdischarge_int2$discharge)))
+
+#copy rows down
+YRdischarge <- YRdischarge_int3[rep(seq_len(nrow(YRdischarge_int3)),each=8),]
+
+write.csv(YRdischarge,file.path(dir.data,"/Environmental data/Processed/YRDischarge.csv"),row.names=FALSE)
+
+
+
+##### YR discharge at Pilot ---------------------------------------------------
+
+Pilotdischarge_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pilot_YR_discharge_monthly.csv"))
+
+
+Pilotdischarge_int2 <- Pilotdischarge_int1 %>% filter(month_nu==7)%>%
+  dplyr::select(year_nu,mean_va) %>% rename(Pdischarge=mean_va,Year=year_nu) %>% 
+  filter(Year>1984&Year<2013)
+
+#need to add in missing years as NA
+
+Discharge_years <- as.data.frame(1985:2012)
+
+colnames(Discharge_years) <- "Year"
+
+Pilotdischarge_int4 <- left_join(Discharge_years,Pilotdischarge_int2)
+
+#standardize
+Pilotdischarge_int5 <- as.data.frame(scale(as.numeric(Pilotdischarge_int4$Pdischarge)))
+
+#add mean values for missing years
+
+Pilotdischarge_int6 <- Pilotdischarge_int5 %>% mutate(V1=if_else(!is.na(V1),V1,0)) 
+
+Pilotdischarge_int7 <- t(Pilotdischarge_int6)
+
+#copy rows down
+Pilotdischarge <- Pilotdischarge_int7[rep(seq_len(nrow(Pilotdischarge_int7)),each=8),]
+
+write.csv(Pilotdischarge,file.path(dir.data,"/Environmental data/Processed/PilotDischarge.csv"),row.names=FALSE)
+
+
 # Checking correlations between vars -----------------------------------------------
 
 #wrangling to long data
-Migtemp_t0_for_corrl <- rename(Daily_mig_temp_int2,Year="year",migtemp_t0="water_temp",Population="population")
-Migtemp_t0_for_corrl$Population <- as.factor(Migtemp_t0_for_corrl$Population)
-levels(Migtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+DailyMigtemp_t0_for_corrl <- rename(Daily_mig_temp_int2,Year="year",DailyMigtemp_t0="water_temp",Population="population")
+DailyMigtemp_t0_for_corrl$Population <- as.factor(DailyMigtemp_t0_for_corrl$Population)
+levels(DailyMigtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+
+WeeklyMigtemp_t0_for_corrl <- rename(Weekly_mig_temp_int2,Year="year",WeeklyMigtemp_t0="water_temp",Population="population")
+WeeklyMigtemp_t0_for_corrl$Population <- as.factor(WeeklyMigtemp_t0_for_corrl$Population)
+levels(WeeklyMigtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+
+Thres_yday_for_corrl <- rename(Thres17_yday_int2,Year="year",Population="population")
+Thres_yday_for_corrl$Population <- as.factor(Thres_yday_for_corrl$Population)
+levels(Thres_yday_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+Thres_count_for_corrl <- rename(Thres17_count_int2,Year="year",Population="population")
+Thres_count_for_corrl$Population <- as.factor(Thres_count_for_corrl$Population)
+levels(Thres_count_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 
@@ -720,9 +863,14 @@ spawning_prcp_for_corrl <-Spawn_prcp_int7
 
 SST_winter_for_corrl <- SEBS_SST_int4
 SST_summer_for_corrl <- SST_summer_int3
+Discharge_for_corrl <- YRdischarge_int2 %>% rename(Year=year)
+Pilot_Discharge_for_corrl <- Pilotdischarge_int2
 
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
-master_corrl <- left_join(master_corrl,Migtemp_t0_for_corrl)
+master_corrl <- left_join(master_corrl,DailyMigtemp_t0_for_corrl)
+master_corrl <- left_join(master_corrl,WeeklyMigtemp_t0_for_corrl)
+#master_corrl <- left_join(master_corrl,Thres_yday_for_corrl)
+master_corrl <- left_join(master_corrl,Thres_count_for_corrl)
 #master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
@@ -730,7 +878,9 @@ master_corrl <- left_join(master_corrl,spawning_temp_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_prcp_for_corrl)
 master_corrl <- left_join(master_corrl,SST_winter_for_corrl)
 master_corrl <- left_join(master_corrl,SST_summer_for_corrl)
-master_corrl_all <- master_corrl[,3:11]
+master_corrl <- left_join(master_corrl,Discharge_for_corrl)
+master_corrl <- left_join(master_corrl,Pilot_Discharge_for_corrl)
+master_corrl_all <- master_corrl[,3:14]
 
 write.csv(master_corrl,file.path(dir.data,"/Environmental data/Processed/all_env_unstd.csv"),row.names=FALSE)
 
@@ -749,49 +899,49 @@ ggplot(master_corrl,aes(y=rearing_prcp,x=spawning_prcp))+
 #correlations by population
 
 Carmacks_master <- filter(master_corrl,Population=="Carmacks")
-Carmacks_master <- Carmacks_master[,3:12]
+Carmacks_master <- Carmacks_master[,3:14]
 Carmacks.table <- cor(Carmacks_master)
 corrplot(Carmacks.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Lower_Mainstem_master <- filter(master_corrl,Population=="Lower Mainstem")
-Lower_Mainstem_master <- Lower_Mainstem_master[,3:12]
+Lower_Mainstem_master <- Lower_Mainstem_master[,3:14]
 Lower_Mainstem.table <- cor(Lower_Mainstem_master)
 corrplot(Lower_Mainstem.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Middle_Mainstem_master <- filter(master_corrl,Population=="Middle Mainstem")
-Middle_Mainstem_master <- Middle_Mainstem_master[,3:12]
+Middle_Mainstem_master <- Middle_Mainstem_master[,3:14]
 Middle_Mainstem.table <- cor(Middle_Mainstem_master)
 corrplot(Middle_Mainstem.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Pelly_master <- filter(master_corrl,Population=="Pelly")
-Pelly_master <- Pelly_master[,3:12]
+Pelly_master <- Pelly_master[,3:14]
 Pelly.table <- cor(Pelly_master)
 corrplot(Pelly.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Stewart_master <- filter(master_corrl,Population=="Stewart")
-Stewart_master <- Stewart_master[,3:12]
+Stewart_master <- Stewart_master[,3:14]
 Stewart.table <- cor(Stewart_master)
 corrplot(Stewart.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Teslin_master <- filter(master_corrl,Population=="Teslin")
-Teslin_master <- Teslin_master[,3:12]
+Teslin_master <- Teslin_master[,3:14]
 Teslin.table <- cor(Teslin_master)
 corrplot(Teslin.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Upper_Lakes_master <- filter(master_corrl,Population=="Upper Lakes and Mainstem")
-Upper_Lakes_master <- Upper_Lakes_master[,3:12]
+Upper_Lakes_master <- Upper_Lakes_master[,3:14]
 Upper_Lakes.table <- cor(Upper_Lakes_master)
 corrplot(Upper_Lakes.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 White_Donjek_master <- filter(master_corrl,Population=="White Donjek")
-White_Donjek_master <- White_Donjek_master[,3:12]
+White_Donjek_master <- White_Donjek_master[,3:14]
 White_Donjek.table <- cor(White_Donjek_master)
 corrplot(White_Donjek.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)

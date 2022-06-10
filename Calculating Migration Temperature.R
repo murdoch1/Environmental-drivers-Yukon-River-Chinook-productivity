@@ -498,19 +498,34 @@ Threshold17_int1 <- Emmonak_water_int16 %>% arrange(year,population,yday) %>%
   
 #add final day of run for those that don't cross 17
 
-Threshold17_int2 <- Threshold17_int1 %>% filter(count==33) %>% 
-  mutate(new_temp=if_else(run_day<33,water_temp,17))
+ # Threshold17_int2 <- Threshold17_int1 %>% filter(count==33) %>%
+ #   mutate(new_temp=if_else(run_day<33,water_temp,17))
+ # 
+ # Threshold17_int3 <- Threshold17_int1 %>% filter(count==34) %>%
+ #   mutate(new_temp=if_else(run_day<34,water_temp,17))
+ # 
+ # Threshold17_int4 <- bind_rows(Threshold17_int2,Threshold17_int3) %>% arrange(year,population,yday) %>%
+ #   group_by(year,population) %>% filter(new_temp>=17) %>%
+ #     slice(1) %>% rename(yday17=yday) %>% dplyr::select(year,population,yday17,run_day)
 
-Threshold17_int3 <- Threshold17_int1 %>% filter(count==34) %>% 
-  mutate(new_temp=if_else(run_day<34,water_temp,17))
-
-Threshold17_int4 <- bind_rows(Threshold17_int2,Threshold17_int3) %>% arrange(year,population,yday) %>%
-  group_by(year,population) %>% filter(new_temp>=17) %>% 
+Threshold17_int4 <- Threshold17_int1 %>% arrange(year,population,yday) %>%
+  group_by(year,population) %>% filter(water_temp>=17) %>% 
     slice(1) %>% rename(yday17=yday) %>% select(year,population,yday17,run_day)
 
 ggplot(Threshold17_int4,aes(y=run_day,x=year))+
   geom_point()+geom_smooth() + facet_wrap(~population)
 
-write.csv(Threshold17_int4,file.path(dir.data,"/Environmental data/Processed/Threshold17.csv"),row.names=FALSE)
+write.csv(Threshold17_int4,file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"),row.names=FALSE)
 
+#Number of days exceeding threshold values
 
+DaysThreshold_int1 <- Emmonak_water_int16 %>% filter(water_temp>=17) %>% 
+  group_by(year,population) %>% summarise(count=n())
+
+DaysThreshold_int2 <- Emmonak_water_int16 %>% group_by(year,population) %>%
+  summarise(total_count=n())
+
+DaysThreshold_int3 <- left_join(DaysThreshold_int2,DaysThreshold_int1) %>%
+  mutate(count=if_else(is.na(count),0,as.numeric(count))) %>% dplyr::select(-total_count)
+
+write.csv(DaysThreshold_int3,file.path(dir.data,"/Environmental data/Processed/Threshold17_numberdays_unstd.csv"),row.names=FALSE)

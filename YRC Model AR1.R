@@ -141,8 +141,10 @@ jags_model = function(){
     for(c in 1:n.covars) {
         cov.eff[p,1,c] <- coef[p,c]*covars[p,1,c]
     }
-     pred.rec[p,1] <- Sobs[p,1]*exp(alpha[p] - Sobs[p,1]*beta[p] + sum(cov.eff[p,1,1:n.covars]))
-    log.resid[p,1] <- lnRobs[p,1] - log(pred.rec[p,1])
+     pred.rec.1[p,1] <- Sobs[p,1]*exp(alpha[p] - Sobs[p,1]*beta[p] + sum(cov.eff[p,1,1:n.covars]))
+    pred.rec.2[p,1] <- pred.rec.1[p,1]
+     resid[p,1] <- exp(lnRobs[p,1]) - pred.rec.1[p,1]
+     log.pred.rec.2[p,1] <- log(pred.rec.2[p,1]) 
     
    #Subsequent Years
      for(y in 2:n.years[p]) {
@@ -150,10 +152,12 @@ jags_model = function(){
        for(c in 1:n.covars) {
         cov.eff[p,y,c] <- coef[p,c]*covars[p,y,c]
       }
-      # Calculate Residual
-      log.resid[p,y] <- lnRobs[p,y] - log(pred.rec[p,y])
       
-      pred.rec[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
+      pred.rec.1[p,y] <- Sobs[p,y]*exp(alpha[p] - Sobs[p,y]*beta[p] + sum(cov.eff[p,y,1:n.covars]))
+      resid[p,y] <- exp(lnRobs[p,y]) - pred.rec.1[p,y]
+      
+      pred.rec.2[p,y] <- pred.rec.1[p,y]+resid[p,y-1]*phi[p]
+      log.pred.rec.2[p,y] <- log(pred.rec.2[p,y]) 
       
         }#next y
     }#next p
@@ -162,10 +166,10 @@ jags_model = function(){
   for(p in 1:n.pops) {
     
     #First Year
-    lnRobs[p,1] ~ dnorm(log(pred.rec[p,1]), pow(sigma.oe[p],-2))
+    lnRobs[p,1] ~ dnorm(log.pred.rec.2[p,1], pow(sigma.oe[p],-2))
     
     for(y in 2:n.years[p]) {
-      lnRobs[p,y] ~ dnorm(log(pred.rec[p,y]) + phi[p]*log.resid[p,y-1], pow(sigma.oe[p],-2))
+      lnRobs[p,y] ~ dnorm(log.pred.rec.2[p,y], pow(sigma.oe[p],-2))
       
     }#next y
   }#next p
@@ -239,7 +243,7 @@ jags_inits = function() {
 #### Set nodes to monitor ####
 
 jags_params = c("alpha","exp.alpha", "beta", "sigma.oe","mu.coef","sigma.coef",
-                "coef","cov.eff","dist.coef","pred.rec","log.resid","phi","pre.phi")
+                "coef","cov.eff","dist.coef","pred.rec.1","pred.rec.2","log.resid","phi","pre.phi")
 
 
 #without autocorrl

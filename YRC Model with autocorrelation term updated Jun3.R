@@ -119,7 +119,7 @@ jags_model = function(){
     alpha[p] <- log(exp.alpha[p])
     beta[p] ~ dnorm(0,pow(0.1,-2));T(0,100)
     sigma.oe[p] ~ dnorm(0, pow(1,-2));T(1e-3,100)
-    phi ~ dunif(-0.99, 0.99)
+    phi[p] ~ dunif(-0.99, 0.99)
     
     #Covariate Effects
     for(c in 1:n.covars) {
@@ -144,13 +144,8 @@ jags_model = function(){
   
   #for first brood year
   for(p in 1:n.pops) {
-    for(y in 2:n.years[p]) {
-      lnRobs[p,y] ~ dnorm(log(pred.rec.2[p,y]), pow(sigma.oe[p],-2))
-      pred.rec.2[p,y] <- pred.rec.1[p,y]+phi*resid[p,y-1]
-      resid[p,y] <- exp(lnRobs[p,y])-pred.rec.1[p,y]
-      
-    }#next y
-  }#next p
+      lnRobs[p,1] ~ dnorm(log(pred.rec.1[p,1]), pow(sigma.oe[p],-2))
+     }#next p
   
   #for remaining brood years
   for(p in 1:n.pops) {
