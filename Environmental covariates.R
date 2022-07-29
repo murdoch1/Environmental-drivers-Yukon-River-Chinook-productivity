@@ -80,87 +80,111 @@ Weekly_migration_temp_t0 <- Weekly_mig_temp_int3 %>%
 
 write.csv(Weekly_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Weekly_max_migration_temp_t0.csv"),row.names=FALSE)
 
+#weighted weekly temp using mean distance to spawning areas in each subbasin
+
+dist_mig_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yukon_rkm.csv")) %>% 
+  dplyr::select(SUB_DRAINA,Site,Distance) %>% rename(population=SUB_DRAINA)
+
+dist_mig_temp_int2 <- dist_mig_temp_int1 %>% group_by(population) %>% 
+  summarise(mean_dist=mean(Distance))
+
+summary(dist_mig_temp_int2$mean_dist)
+
+dist_mig_temp_int3 <- dist_mig_temp_int2 %>% mutate(dist_scale=mean_dist/(2158))
+dist_mig_temp_int3$population <- as.factor(dist_mig_temp_int3$population)
+
+levels(dist_mig_temp_int3$population)<- list("LowerMainstem"="Lower Mainstem","White-Donjek"="White Donjek","MiddleMainstem"="Middle Mainstem","UpperMainstem"="Upper Lakes and Mainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+dist_mig_temp_int4 <- left_join(Weekly_mig_temp_int2,dist_mig_temp_int3) %>% 
+  mutate(water_temp_adj=water_temp*dist_scale)
+
+dist_mig_temp_int4$water_temp_adj <- scale(dist_mig_temp_int4$water_temp_adj)
+
+Weekly_migration_temp_weighted <- dist_mig_temp_int4 %>% dplyr::select(-mean_dist,-dist_scale,-water_temp) %>%   
+  spread(year,water_temp_adj) %>% dplyr::select(-population)
+
+write.csv(Weekly_migration_temp_weighted,file.path(dir.data,"/Environmental data/Processed/Weekly_max_migration_temp_weighted.csv"),row.names=FALSE)
 
 
-
-#Mean daily temp
-Daily_mig_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Mean_daily_migration_temp_unstd.csv"))
-
-Daily_mig_temp_int2 <- filter(Daily_mig_temp_int1,year<2013)
-
-Daily_migration_temp_plot <- Daily_mig_temp_int2 %>% 
-  mutate(population=fct_relevel(population,"LowerMainstem","White-Donjek","Stewart","Pelly",
-                                "Teslin","UpperMainstem","Carmacks","MiddleMainstem")) %>% 
-ggplot(aes(y=water_temp,x=population))+
-  geom_boxplot()+ylab("Daily mig temp (°C)")+xlab("Population")+theme_bw()+
-  scale_x_discrete(labels=c("Carmacks"="Carmacks","UpperMainstem"="Upper","LowerMainstem"="Lower",
-                     "Pelly"="Pelly","Stewart"="Stewart","White-Donjek"="White",
-                     "Teslin"="Teslin","MiddleMainstem"="Middle"))+
-  theme(text = element_text(size=25),axis.text=element_text(size=15),
-        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
-        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
-
-
-#standardize
-Daily_mig_temp_int3 <- Daily_mig_temp_int2
-Daily_mig_temp_int3$water_temp <- scale(Daily_mig_temp_int3$water_temp)
-
-Daily_migration_temp_t0 <- Daily_mig_temp_int3 %>%  
-  spread(year,water_temp) %>% select(-population)
-
-write.csv(Daily_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Daily_migration_temp_t0.csv"),row.names=FALSE)
-
-
-#day of year that exceeds 17 degrees
-
-
-Thres17_yday_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
-
-Thres17_yday_int2 <- filter(Thres17_yday_int1,year<2013)
-
-
-#standardize
-Thres17_yday_int3 <- Thres17_yday_int2
-Thres17_yday_int3$yday17 <- scale(Thres17_yday_int3$yday17)
-
-Threshold17_yday <- Thres17_yday_int3 %>%  select(year,population,yday17) %>% 
-  spread(year,yday17) %>% select(-population)
-
-write.csv(Threshold17_yday,file.path(dir.data,"/Environmental data/Processed/Threshold17_yday.csv"),row.names=FALSE)
-
-
-
-#day of run that exceeds 17 degrees
-
-
-Thres17_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
-
-Thres17_int2 <- filter(Thres17_int1,year<2013)
-
-
-#standardize
-Thres17_int3 <- Thres17_int2
-Thres17_int3$run_day <- scale(Thres17_int3$run_day)
-
-Threshold17 <- Thres17_int3 %>%  select(year,population,run_day) %>% 
-  spread(year,run_day) %>% select(-population)
-
-write.csv(Threshold17,file.path(dir.data,"/Environmental data/Processed/Threshold17_runday.csv"),row.names=FALSE)
-
-#number of days exceeding 17 degrees
-
-Thres17_count_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_numberdays_unstd.csv"))
-
-Thres17_count_int2 <- filter(Thres17_count_int1,year<2013)
-
-#standardize
-Thres17_count_int3 <- Thres17_count_int2
-Thres17_count_int3$count <- scale(Thres17_count_int3$count)
-
-Threshold17_count <- Thres17_count_int3 %>%  dplyr::select(year,population,count) %>% 
-  spread(year,count) %>% dplyr::select(-population)
-
-write.csv(Threshold17_count,file.path(dir.data,"/Environmental data/Processed/Threshold17_count.csv"),row.names=FALSE)
+# #Mean daily temp
+# Daily_mig_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Mean_daily_migration_temp_unstd.csv"))
+# 
+# Daily_mig_temp_int2 <- filter(Daily_mig_temp_int1,year<2013)
+# 
+# Daily_migration_temp_plot <- Daily_mig_temp_int2 %>% 
+#   mutate(population=fct_relevel(population,"LowerMainstem","White-Donjek","Stewart","Pelly",
+#                                 "Teslin","UpperMainstem","Carmacks","MiddleMainstem")) %>% 
+# ggplot(aes(y=water_temp,x=population))+
+#   geom_boxplot()+ylab("Daily mig temp (°C)")+xlab("Population")+theme_bw()+
+#   scale_x_discrete(labels=c("Carmacks"="Carmacks","UpperMainstem"="Upper","LowerMainstem"="Lower",
+#                      "Pelly"="Pelly","Stewart"="Stewart","White-Donjek"="White",
+#                      "Teslin"="Teslin","MiddleMainstem"="Middle"))+
+#   theme(text = element_text(size=25),axis.text=element_text(size=15),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# 
+# #standardize
+# Daily_mig_temp_int3 <- Daily_mig_temp_int2
+# Daily_mig_temp_int3$water_temp <- scale(Daily_mig_temp_int3$water_temp)
+# 
+# Daily_migration_temp_t0 <- Daily_mig_temp_int3 %>%  
+#   spread(year,water_temp) %>% select(-population)
+# 
+# write.csv(Daily_migration_temp_t0,file.path(dir.data,"/Environmental data/Processed/Daily_migration_temp_t0.csv"),row.names=FALSE)
+# 
+# 
+# #day of year that exceeds 17 degrees
+# 
+# 
+# Thres17_yday_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
+# 
+# Thres17_yday_int2 <- filter(Thres17_yday_int1,year<2013)
+# 
+# 
+# #standardize
+# Thres17_yday_int3 <- Thres17_yday_int2
+# Thres17_yday_int3$yday17 <- scale(Thres17_yday_int3$yday17)
+# 
+# Threshold17_yday <- Thres17_yday_int3 %>%  select(year,population,yday17) %>% 
+#   spread(year,yday17) %>% select(-population)
+# 
+# write.csv(Threshold17_yday,file.path(dir.data,"/Environmental data/Processed/Threshold17_yday.csv"),row.names=FALSE)
+# 
+# 
+# 
+# #day of run that exceeds 17 degrees
+# 
+# 
+# Thres17_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_unstd.csv"))
+# 
+# Thres17_int2 <- filter(Thres17_int1,year<2013)
+# 
+# 
+# #standardize
+# Thres17_int3 <- Thres17_int2
+# Thres17_int3$run_day <- scale(Thres17_int3$run_day)
+# 
+# Threshold17 <- Thres17_int3 %>%  select(year,population,run_day) %>% 
+#   spread(year,run_day) %>% select(-population)
+# 
+# write.csv(Threshold17,file.path(dir.data,"/Environmental data/Processed/Threshold17_runday.csv"),row.names=FALSE)
+# 
+# #number of days exceeding 17 degrees
+# 
+# Thres17_count_int1 <- read.csv(file.path(dir.data,"/Environmental data/Processed/Threshold17_numberdays_unstd.csv"))
+# 
+# Thres17_count_int2 <- filter(Thres17_count_int1,year<2013)
+# 
+# #standardize
+# Thres17_count_int3 <- Thres17_count_int2
+# Thres17_count_int3$count <- scale(Thres17_count_int3$count)
+# 
+# Threshold17_count <- Thres17_count_int3 %>%  dplyr::select(year,population,count) %>% 
+#   spread(year,count) %>% dplyr::select(-population)
+# 
+# write.csv(Threshold17_count,file.path(dir.data,"/Environmental data/Processed/Threshold17_count.csv"),row.names=FALSE)
 
 
 ##### Migration temperature (RETURN INDEX) ------------------------------------
@@ -249,6 +273,71 @@ rearing_temp <- as.matrix(Temp_int10[2:29])
 write.csv(rearing_temp,file.path(dir.data,"/Environmental data/Processed/rearing_temp.csv"),row.names=FALSE)
 
 
+
+##### Juvenile GDD ------------------------------------------------------------
+
+#growing degree days above five degrees using mean temperatures from daily Daymet data
+
+GDD_int1a <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmax_daily1.csv"))
+GDD_int1b <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmax_daily2.csv"))
+GDD_int1c <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmin_daily1.csv"))
+GDD_int1d <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmin_daily2.csv"))
+GDD_int1e <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmin_daily2b.csv"))
+
+GDD_int2a <- bind_rows(GDD_int1a,GDD_int1b) %>% rename(population="VALUE",tmax="MEAN") %>% select(population,StdTime,tmax)
+
+GDD_int2b <- bind_rows(GDD_int1c,GDD_int1d,GDD_int1e) %>% rename(population="VALUE",tmin="MEAN") %>% select(population,StdTime,tmin)
+
+GDD_int3 <- left_join(GDD_int2a,GDD_int2b)
+
+GDD_int3$tmean=rowMeans(GDD_int3[,c("tmin","tmax")])
+  
+GDD_int4 <- GDD_int3 %>% 
+  mutate(Year=as.numeric(format(as.Date(StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y")),
+         Month=as.numeric(format(as.Date(StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m")),
+         yday=yday(StdTime)) %>% 
+  select(population,Year,Month,yday,tmean)
+  
+GDD_int5 <- GDD_int4 %>% filter(tmean>5) %>% 
+  group_by(population,Year) %>% 
+  mutate(GDD5=sum(tmean)) %>% 
+  select(population,Year,GDD5) %>% distinct()
+
+#view trend
+ggplot(GDD_int5,aes(y=GDD5,x=Year))+facet_wrap(~population)+
+  geom_point(size=2)+geom_smooth()+ylab("Growing degree days")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#index to t = +1
+
+GDD_int5$Year <- as.numeric(GDD_int5$Year)
+GDD_int5 <- as.data.frame(GDD_int5)
+
+GDD_int6 <- GDD_int5 %>% 
+  mutate(Year2 = Year-1) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+GDD_int7 <- filter(GDD_int6,Year>1984&Year<2013)
+
+GDD_int8 <- GDD_int7
+
+GDD_int8$GDD5 <- scale(GDD_int8$GDD5)
+
+#organize into matrix for analyses
+GDD_int9 <- GDD_int8 %>% 
+  spread(key=Year,value=GDD5)
+
+#checked popn order before slicing
+rearing_GDD <- as.matrix(GDD_int9[2:29])
+
+write.csv(rearing_GDD,file.path(dir.data,"/Environmental data/Processed/rearing_GDD.csv"),row.names=FALSE)
+
+
+
 ##### Juvenile rearing precipitation ------------------------------------------------
 
 #Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
@@ -264,6 +353,13 @@ Prcp_int3$Year <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d"
 Prcp_int3$Month <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
 
 Prcp_int4 <- select(Prcp_int3,-StdTime)
+
+ggplot(Prcp_int4,aes(y=Prcp_mnth,x=as.factor(Month)))+
+  geom_boxplot()+ylab("Monthly precipitation (mm)")+theme_bw()+
+  facet_wrap(~Population)+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
 #index to t = +1
 
@@ -316,63 +412,129 @@ write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing
 
 
 
-##### Spawning and early incubation temperature -------------------------------
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level max
 
-#Using Daymet monthly air temperature data processed in ArcGIS Pro to watershed-level means
+Prcp_max_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
 
-Spawn_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmonthlymean.csv"))
-
-Spawn_temp_int2 <- select(Spawn_temp_int1,SUB_DRAINA,StdTime,MEAN)
-Spawn_temp_int3 <- rename(Spawn_temp_int2,Population="SUB_DRAINA",AirTemp_mnth="MEAN")
+Prcp_max_int2 <- select(Prcp_max_int1,SUB_DRAINA,StdTime,MEAN)
+Prcp_max_int3 <- rename(Prcp_max_int2,Population="SUB_DRAINA",Prcp_max_mnth="MEAN")
 
 #pull out year and month columns
 
-Spawn_temp_int3$Year <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
-Spawn_temp_int3$Month <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+Prcp_max_int3$Year <- as.numeric(format(as.Date(Prcp_max_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Prcp_max_int3$Month <- as.numeric(format(as.Date(Prcp_max_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
 
-Spawn_temp_int4 <- select(Spawn_temp_int3,-StdTime)
+Prcp_max_int4 <- select(Prcp_max_int3,-StdTime)
+
+#index to t = +1
+
+Prcp_max_int5 <- Prcp_max_int4 %>% 
+  mutate(Year2 = Year-1) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
 
 #remove extra years i.e. <1985 and >2012
-Spawn_temp_int5 <- filter(Spawn_temp_int4,Year>1984&Year<2013)
+Prcp_max_int6 <- filter(Prcp_max_int5,Year>1984&Year<2013)
 
-#calculate annual spawning and early incubation temperature 
-Spawn_temp_int6 <- filter(Spawn_temp_int5,Month==8|Month==9) 
+#calculate annual rearing precipitation from June to Aug
 
-Spawn_temp_int7 <- Spawn_temp_int6 %>% 
+Prcp_max_int7 <- filter(Prcp_max_int6,Month==6|Month==7|Month==8) 
+
+Prcp_max_int8 <- Prcp_max_int7 %>% 
   group_by(Population,Year) %>% 
-  summarise(spawning_temp=mean(AirTemp_mnth))
+  summarise(rearing_prcp_max=max(Prcp_max_mnth))
+
+Prcp_max_int9 <- Prcp_max_int8
 
 #view trend
-ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
-  geom_point(size=2)+geom_smooth()+ylab("Spawning air temperature (°C)")+theme_bw()+
+ggplot(Prcp_max_int8,aes(y=rearing_prcp_max,x=Year))+
+  geom_point(size=2)+geom_smooth()+ylab("Rearing precipitation (mm)")+theme_bw()+
+  facet_wrap(~Population)+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-mod1 <- gam(spawning_temp~s(Year),data=Spawn_temp_int7)
+ggplot(Prcp_max_int8,aes(y=rearing_prcp_max,x=Population))+
+  geom_boxplot()+ylab("Rearing precipitation (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Prcp_max_int8_2000 <- filter(Prcp_max_int8,Year>1999)
+mod1 <- gam(rearing_Prcp_max~s(Year),data=Prcp_max_int8_2000)
 summary(mod1)
+plot(mod1)
 
-cor.test(Spawn_temp_int7$Year,Spawn_temp_int7$spawning_temp)
-
-Spawn_temp_int8 <- Spawn_temp_int7
-
-Spawn_temp_int8$spawning_temp <- scale(Spawn_temp_int8$spawning_temp)
+Prcp_max_int9$rearing_prcp_max <- scale(Prcp_max_int9$rearing_prcp_max)
 
 #organize into matrix for analyses
-Spawn_temp_int9 <- Spawn_temp_int8 %>% 
-  spread(key=Year,value=spawning_temp)
+Prcp_max_int10 <- Prcp_max_int9 %>% 
+  spread(key=Year,value=rearing_prcp_max)
 #checked popn order before slicing
-spawning_temp <- as.matrix(Spawn_temp_int9[2:29])
+rearing_prcp_max <- as.matrix(Prcp_max_int10[2:29])
 
-ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
-  geom_point()+geom_smooth()+facet_wrap(~Population)
+write.csv(rearing_prcp_max,file.path(dir.data,"/Environmental data/Processed/rearing_prcp_max.csv"),row.names=FALSE)
 
-write.csv(spawning_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
 
+##### Spawning and early incubation temperature -------------------------------
+
+#Using Daymet monthly air temperature data processed in ArcGIS Pro to watershed-level means
+# 
+# Spawn_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Tmonthlymean.csv"))
+# 
+# Spawn_temp_int2 <- select(Spawn_temp_int1,SUB_DRAINA,StdTime,MEAN)
+# Spawn_temp_int3 <- rename(Spawn_temp_int2,Population="SUB_DRAINA",AirTemp_mnth="MEAN")
+# 
+# #pull out year and month columns
+# 
+# Spawn_temp_int3$Year <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# Spawn_temp_int3$Month <- as.numeric(format(as.Date(Spawn_temp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+# 
+# Spawn_temp_int4 <- select(Spawn_temp_int3,-StdTime)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Spawn_temp_int5 <- filter(Spawn_temp_int4,Year>1984&Year<2013)
+# 
+# #calculate annual spawning and early incubation temperature 
+# Spawn_temp_int6 <- filter(Spawn_temp_int5,Month==8|Month==9) 
+# 
+# Spawn_temp_int7 <- Spawn_temp_int6 %>% 
+#   group_by(Population,Year) %>% 
+#   summarise(spawning_temp=mean(AirTemp_mnth))
+# 
+# #view trend
+# ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
+#   geom_point(size=2)+geom_smooth()+ylab("Spawning air temperature (°C)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# mod1 <- gam(spawning_temp~s(Year),data=Spawn_temp_int7)
+# summary(mod1)
+# 
+# cor.test(Spawn_temp_int7$Year,Spawn_temp_int7$spawning_temp)
+# 
+# Spawn_temp_int8 <- Spawn_temp_int7
+# 
+# Spawn_temp_int8$spawning_temp <- scale(Spawn_temp_int8$spawning_temp)
+# 
+# #organize into matrix for analyses
+# Spawn_temp_int9 <- Spawn_temp_int8 %>% 
+#   spread(key=Year,value=spawning_temp)
+# #checked popn order before slicing
+# spawning_temp <- as.matrix(Spawn_temp_int9[2:29])
+# 
+# ggplot(Spawn_temp_int7,aes(y=spawning_temp,x=Year))+
+#   geom_point()+geom_smooth()+facet_wrap(~Population)
+# 
+# write.csv(spawning_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp.csv"),row.names=FALSE)
+# 
 
 
 #using air temperatures at Brown et al spawning sites
-
+#prior data processing done in YRC Water Temperatures project, Climate spawning sites.R
+#this is a non-weighted spawning air temperature proxy using the mean of all sites within each subbasin
+#daily air temps were a running average of the past 14 days, and then summarized for dates in Aug - Sep (tmean14)
 
 Brown_air_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/spawning_temp_non_weighted.csv"))
 
@@ -396,18 +558,164 @@ Brown_air_int4 <- Brown_air_int3 %>%
 #checked popn order before slicing
 spawning_brown_air_temp <- as.matrix(Brown_air_int4[2:29])
 
-write.csv(spawning_brown_air_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp2.csv"),row.names=FALSE)
+write.csv(spawning_brown_air_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp_air.csv"),row.names=FALSE)
 
 
+
+#using estimated historical water temperatures at Brown et al spawning sites
+
+Brown_water_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Spawn_sites_predict.csv"))
+
+
+ggplot(Brown_water_int1,aes(y=WTpredicted,x=yday))+facet_wrap(~subbasin_orig)+
+  geom_point(size=2)+geom_smooth()+ylab("Spawning est water temperature (°C)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#try a few options
+# 1 # non-weighted average with all sites
+# 2 # major producers only
+
+# 1 # non-weighted spawning average
+
+Brown_water_int2 <- Brown_water_int1 %>% group_by(subbasin_orig,year) %>% 
+  summarise(wtmean=mean(WTpredicted))
+
+#view trend
+ggplot(Brown_water_int2,aes(y=wtmean,x=year))+
+  geom_point(size=2)+geom_smooth()+ylab("Spawning est water temperature (°C)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Brown_water_int3 <- Brown_water_int2 %>% select(subbasin_orig,year,wtmean)
+
+Brown_water_int4 <- Brown_water_int3
+
+Brown_water_int4$wtmean <- scale(Brown_water_int4$wtmean)
+
+#organize into matrix for analyses
+Brown_water_int5 <- Brown_water_int4 %>% 
+  spread(key=year,value=wtmean)
+#checked popn order before slicing
+spawning_brown_water_temp <- as.matrix(Brown_water_int5[2:29])
+
+write.csv(spawning_brown_water_temp,file.path(dir.data,"/Environmental data/Processed/spawning_est_water_temp1.csv"),row.names=FALSE)
+
+
+# 2 # major producers only
+# 
+# Brown_water_major_int2 <- Brown_water_int1 %>% filter(Prod_level=="major") %>% 
+#   group_by(subbasin_orig,year) %>% 
+#   summarise(wtmean=mean(WTpredicted))
+# 
+# #view trend
+# ggplot(Brown_water_major_int2,aes(y=wtmean,x=year))+
+#   geom_point(size=2)+geom_smooth()+ylab("Spawning est water temperature (°C)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Brown_water_major_int3 <- Brown_water_major_int2 %>% select(subbasin_orig,year,wtmean)
+# 
+# Brown_water_major_int4 <- Brown_water_major_int3
+# 
+# Brown_water_major_int4$wtmean <- scale(Brown_water_major_int4$wtmean)
+# 
+# #organize into matrix for analyses
+# Brown_water_major_int5 <- Brown_water_major_int4 %>% 
+#   spread(key=year,value=wtmean)
+# #checked popn order before slicing
+# spawning_brown_water_temp <- as.matrix(Brown_water_major_int5[2:29])
+# 
+# write.csv(spawning_brown_water_temp,file.path(dir.data,"/Environmental data/Processed/spawning_temp_major.csv"),row.names=FALSE)
+# 
+
+#compare air temp proxy to estimated historical water temps
+# 
+# compare_spawning_temp_int1 <- Brown_water_int3 %>% rename(subbasin="subbasin_orig")
+# 
+# compare_spawning_temp <- left_join(compare_spawning_temp_int1,Brown_air_int2)
+# 
+# compare_spawning_temp$subbasin <- as.factor(compare_spawning_temp$subbasin)
+# ggplot(compare_spawning_temp,aes(y=tmean14,x=wtmean))+
+#   geom_point(size=2)+geom_smooth()+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# cor.test(compare_spawning_temp$tmean14,compare_spawning_temp$wtmean)
 
 ##### Spawning and early incubation precipitation -------------------------------
 
 #Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
+# 
+# Spawn_prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
+# 
+# Spawn_prcp_int2 <- select(Spawn_prcp_int1,SUB_DRAINA,StdTime,MEAN)
+# Spawn_prcp_int3 <- rename(Spawn_prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+# 
+# #pull out year and month columns
+# 
+# Spawn_prcp_int3$Year <- as.numeric(format(as.Date(Spawn_prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# Spawn_prcp_int3$Month <- as.numeric(format(as.Date(Spawn_prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+# 
+# Spawn_prcp_int4 <- select(Spawn_prcp_int3,-StdTime)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Spawn_prcp_int5 <- filter(Spawn_prcp_int4,Year>1984&Year<2013)
+# 
+# #calculate annual spawning and early incubation precipitation
+# 
+# Spawn_prcp_int6 <- filter(Spawn_prcp_int5,Month==8|Month==9|Month==10) 
+# 
+# Spawn_prcp_int7 <- Spawn_prcp_int6 %>% 
+#   group_by(Population,Year) %>% 
+#   summarise(spawning_prcp=sum(Prcp_mnth))
+# 
+# #view trend
+# ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
+#   geom_point(size=2)+geom_smooth()+ylab("Spawning precipitation (mm)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Population))+
+#   geom_boxplot()+ylab("Spawning precipitation (mm)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Spawn_prcp_int8 <- Spawn_prcp_int7
+# 
+# Spawn_prcp_int8$spawning_prcp <- scale(Spawn_prcp_int8$spawning_prcp)
+# 
+# #organize into matrix for analyses
+# Spawn_prcp_int9 <- Spawn_prcp_int8 %>% 
+#   spread(key=Year,value=spawning_prcp)
+# #checked popn order before slicing
+# spawning_prcp <- as.matrix(Spawn_prcp_int9[2:29])
+# 
+# ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
+#   geom_point()+geom_smooth()+facet_wrap(~Population)
+# 
+# write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"),row.names=FALSE)
+# 
 
-Spawn_prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
 
-Spawn_prcp_int2 <- select(Spawn_prcp_int1,SUB_DRAINA,StdTime,MEAN)
-Spawn_prcp_int3 <- rename(Spawn_prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to spawning watershed-level means
+
+Spawn_prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Prcpmonthly_spawning.csv"))
+
+Spawn_prcp_int2 <- select(Spawn_prcp_int1,Population,Site_1,StdTime,MEAN)
+Spawn_prcp_int3 <- rename(Spawn_prcp_int2,Site="Site_1",Prcp_mnth="MEAN")
+
+#fix Wolf R empty population to Teslin
+
+Spawn_prcp_int3 <- Spawn_prcp_int3 %>% mutate(Population=if_else(Site!="WolfR",
+                                                                 Population,"Teslin"))
 
 #pull out year and month columns
 
@@ -424,36 +732,170 @@ Spawn_prcp_int5 <- filter(Spawn_prcp_int4,Year>1984&Year<2013)
 Spawn_prcp_int6 <- filter(Spawn_prcp_int5,Month==8|Month==9|Month==10) 
 
 Spawn_prcp_int7 <- Spawn_prcp_int6 %>% 
-  group_by(Population,Year) %>% 
-  summarise(spawning_prcp=sum(Prcp_mnth))
+  group_by(Population,Year,Month) %>% 
+  summarise(mean_monthly_spawning_prcp=mean(Prcp_mnth))
 
+Spawn_prcp_int7b <- Spawn_prcp_int7 %>% 
+group_by(Population,Year) %>% 
+  summarise(total_spawning_prcp=sum(mean_monthly_spawning_prcp))
+  
 #view trend
-ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
-  geom_point(size=2)+geom_smooth()+ylab("Spawning precipitation (mm)")+theme_bw()+
+
+
+ggplot(Spawn_prcp_int7b,aes(y=spawning_prcp,x=Population))+
+  geom_boxplot()+ylab("Spawning precipitation total (mm)")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Population))+
+Spawn_prcp_int8 <- Spawn_prcp_int7b
+
+Spawn_prcp_int8$total_spawning_prcp <- scale(Spawn_prcp_int8$total_spawning_prcp)
+
+#organize into matrix for analyses
+Spawn_prcp_int9 <- Spawn_prcp_int8 %>% 
+  spread(key=Year,value=total_spawning_prcp)
+#checked popn order before slicing
+spawning_prcp <- as.matrix(Spawn_prcp_int9[2:29])
+
+ggplot(Spawn_prcp_int7b,aes(y=spawning_prcp,x=Year))+
+  geom_point()+geom_smooth()+facet_wrap(~Population)
+
+
+write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp_total.csv"),row.names=FALSE)
+
+
+
+
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to spawning watershed-level max monthly prcp
+
+Spawn_prcp_max_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Prcpmonthly_spawning.csv"))
+
+Spawn_prcp_max_int2 <- select(Spawn_prcp_max_int1,Population,Site_1,StdTime,MEAN)
+Spawn_prcp_max_int3 <- rename(Spawn_prcp_max_int2,Site="Site_1",Prcp_mnth="MEAN")
+
+#fix Wolf R empty population to Teslin
+
+Spawn_prcp_max_int3 <- Spawn_prcp_max_int3 %>% mutate(Population=if_else(Site!="WolfR",
+                                                                 Population,"Teslin"))
+
+#pull out year and month columns
+
+Spawn_prcp_max_int3$Year <- as.numeric(format(as.Date(Spawn_prcp_max_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Spawn_prcp_max_int3$Month <- as.numeric(format(as.Date(Spawn_prcp_max_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Spawn_prcp_max_int4 <- select(Spawn_prcp_max_int3,-StdTime)
+
+#remove extra years i.e. <1985 and >2012
+Spawn_prcp_max_int5 <- filter(Spawn_prcp_max_int4,Year>1984&Year<2013)
+
+#calculate annual spawning and early incubation precipitation
+
+Spawn_prcp_max_int6 <- filter(Spawn_prcp_max_int5,Month==8|Month==9|Month==10) 
+
+Spawn_prcp_max_int7 <- Spawn_prcp_max_int6 %>% 
+  group_by(Population,Year,Month) %>% 
+  summarise(mean_monthly_spawning_prcp=mean(Prcp_mnth))
+
+ggplot(Spawn_prcp_max_int7,aes(y=mean_monthly_spawning_prcp,x=Month))+
   geom_boxplot()+ylab("Spawning precipitation (mm)")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-Spawn_prcp_int8 <- Spawn_prcp_int7
+Spawn_prcp_max_int7b <- Spawn_prcp_max_int7 %>% 
+group_by(Population,Year) %>% 
+  summarise(max_spawning_prcp=max(mean_monthly_spawning_prcp))
+  
+#view trend
+ggplot(Spawn_prcp_max_int7b,aes(y=max_spawning_prcp,x=Year))+
+  geom_point(size=2)+geom_smooth()+ylab("Spawning precipitation max (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-Spawn_prcp_int8$spawning_prcp <- scale(Spawn_prcp_int8$spawning_prcp)
+ggplot(Spawn_prcp_max_int7b,aes(y=max_spawning_prcp,x=Population))+
+  geom_boxplot()+ylab("Spawning precipitation max (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Spawn_prcp_max_int8 <- Spawn_prcp_max_int7b
+
+Spawn_prcp_max_int8$max_spawning_prcp <- scale(Spawn_prcp_max_int8$max_spawning_prcp)
 
 #organize into matrix for analyses
-Spawn_prcp_int9 <- Spawn_prcp_int8 %>% 
-  spread(key=Year,value=spawning_prcp)
+Spawn_prcp_max_int9 <- Spawn_prcp_max_int8 %>% 
+  spread(key=Year,value=max_spawning_prcp)
 #checked popn order before slicing
-spawning_prcp <- as.matrix(Spawn_prcp_int9[2:29])
+spawning_prcp_max <- as.matrix(Spawn_prcp_max_int9[2:29])
 
-ggplot(Spawn_prcp_int7,aes(y=spawning_prcp,x=Year))+
-  geom_point()+geom_smooth()+facet_wrap(~Population)
+write.csv(spawning_prcp_max,file.path(dir.data,"/Environmental data/Processed/spawning_prcp_max.csv"),row.names=FALSE)
 
-write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp.csv"),row.names=FALSE)
+
+
+
+
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to spawning watershed-level means
+
+Spawn_prcp_mean_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Prcpmonthly_spawning.csv"))
+
+Spawn_prcp_mean_int2 <- select(Spawn_prcp_mean_int1,Population,Site_1,StdTime,MEAN)
+Spawn_prcp_mean_int3 <- rename(Spawn_prcp_mean_int2,Site="Site_1",Prcp_mnth="MEAN")
+
+#fix Wolf R empty population to Teslin
+
+Spawn_prcp_mean_int3 <- Spawn_prcp_mean_int3 %>% mutate(Population=if_else(Site!="WolfR",
+                                                                 Population,"Teslin"))
+
+#pull out year and month columns
+
+Spawn_prcp_mean_int3$Year <- as.numeric(format(as.Date(Spawn_prcp_mean_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Spawn_prcp_mean_int3$Month <- as.numeric(format(as.Date(Spawn_prcp_mean_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Spawn_prcp_mean_int4 <- select(Spawn_prcp_mean_int3,-StdTime)
+
+#remove extra years i.e. <1985 and >2012
+Spawn_prcp_mean_int5 <- filter(Spawn_prcp_mean_int4,Year>1984&Year<2013)
+
+#calculate annual spawning and early incubation precipitation
+
+Spawn_prcp_mean_int6 <- filter(Spawn_prcp_mean_int5,Month==8|Month==9|Month==10) 
+
+Spawn_prcp_mean_int7 <- Spawn_prcp_mean_int6 %>% 
+  group_by(Population,Year,Month) %>% 
+  summarise(mean_monthly_spawning_prcp=mean(Prcp_mnth))
+
+Spawn_prcp_mean_int7b <- Spawn_prcp_mean_int7 %>% 
+group_by(Population,Year) %>% 
+  summarise(mean_spawning_prcp=mean(mean_monthly_spawning_prcp))
+  
+#view trend
+ggplot(Spawn_prcp_mean_int7b,aes(y=mean_spawning_prcp,x=Year))+
+  geom_point(size=2)+geom_smooth()+ylab("Spawning precipitation mean (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+ggplot(Spawn_prcp_mean_int7b,aes(y=spawning_prcp,x=Population))+
+  geom_boxplot()+ylab("Spawning precipitation mean (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Spawn_prcp_mean_int8 <- Spawn_prcp_mean_int7b
+
+Spawn_prcp_mean_int8$mean_spawning_prcp <- scale(Spawn_prcp_mean_int8$mean_spawning_prcp)
+
+#organize into matrix for analyses
+Spawn_prcp_mean_int9 <- Spawn_prcp_mean_int8 %>% 
+  spread(key=Year,value=mean_spawning_prcp)
+#checked popn order before slicing
+spawning_prcp <- as.matrix(Spawn_prcp_mean_int9[2:29])
+
+
+write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawning_prcp_mean.csv"),row.names=FALSE)
+
 
 
 ##### Maximum annual snow -----------------------------------------------------
@@ -464,56 +906,268 @@ write.csv(spawning_prcp,file.path(dir.data,"/Environmental data/Processed/spawni
 #spawning t = 0
 
 #Using Daymet snow water equivalent data. Maximum values are averaged over each watershed by year
+# 
+# Swe_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Snow_max.csv"))
+# 
+# 
+# Swe_int2 <- select(Swe_int1,SUB_DRAINA,StdTime,MEAN)
+# Swe_int3 <- rename(Swe_int2,Population="SUB_DRAINA",Swe="MEAN")
+# 
+# #pull out year and month columns
+# 
+# Swe_int3$Year <- as.numeric(format(as.Date(Swe_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# 
+# Swe_int4 <- select(Swe_int3,-StdTime)
+# 
+# ggplot(Swe_int4,aes(y=Swe,x=Population))+
+#   geom_boxplot()+ylab("Snowpack")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# ggplot(Swe_int4,aes(y=Swe,x=Year))+
+#   geom_point()+geom_smooth()+ylab("Snowpack")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# mod1 <- lm(Swe~Year,data=Swe_int4)
+# summary(mod1)
+# 
+# #index to t = 0
+# 
+# Swe_int5 <- Swe_int4 %>% 
+#   mutate(Year2 = Year-0) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Swe_int6 <- filter(Swe_int5,Year>1984&Year<2013)
+# 
+# Swe_int7 <- Swe_int6
+# 
+# Swe_int7$Swe <- scale(Swe_int7$Swe)
+# 
+# #organize into matrix for analyses
+# Swe_int8 <- Swe_int7 %>% 
+#   spread(key=Year,value=Swe)
+# #checked popn order before slicing
+# annual_snowpack <- as.matrix(Swe_int8[2:29])
+# 
+# write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"),row.names=FALSE)
+# 
+# 
+# #Max snowpack by year averaged over spawning watersheds
+# 
+# Swe_spawn_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Spawning_snow_max.csv"))
+# 
+# 
+# Swe_spawn_int2 <- select(Swe_spawn_int1,Population,Site_1,StdTime,MEAN)
+# Swe_spawn_int3 <- rename(Swe_spawn_int2,Site="Site_1",Swe="MEAN")
+# 
+# #pull out year and month columns
+# 
+# Swe_spawn_int3$Year <- as.numeric(format(as.Date(Swe_spawn_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# 
+# Swe_spawn_int4 <- select(Swe_spawn_int3,-StdTime)
+# 
+# #summarise to watershed
+# 
+# Swe_spawn_int4b <- Swe_spawn_int4 %>% group_by(Population,Year) %>% 
+#   summarise(Snowpack_mean=mean(Swe))
+# 
+# 
+# #index to t = 0
+# 
+# Swe_spawn_int5 <- Swe_spawn_int4b %>% 
+#   mutate(Year2 = Year-0) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Swe_spawn_int6 <- filter(Swe_spawn_int5,Year>1984&Year<2013)
+# 
+# Swe_spawn_int7 <- Swe_spawn_int6
+# 
+# Swe_spawn_int7$Snowpack_mean <- scale(Swe_spawn_int7$Snowpack_mean)
+# 
+# #organize into matrix for analyses
+# Swe_spawn_int8 <- Swe_spawn_int7 %>% 
+#   spread(key=Year,value=Snowpack_mean)
+# #checked popn order before slicing
+# annual_snowpack <- as.matrix(Swe_spawn_int8[2:29])
+# 
+# write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annual_snowpack_spawning.csv"),row.names=FALSE)
+# 
+# 
+# 
+# #Max snowpack by year averaged over spawning watersheds
+# 
+# Swe_spawn_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Spawning_snow_max_sum.csv"))
+# 
+# 
+# Swe_spawn_int2 <- select(Swe_spawn_int1,Population,Site_1,StdTime,SUM)
+# Swe_spawn_int3 <- rename(Swe_spawn_int2,Site="Site_1",Swe="SUM")
+# 
+# #pull out year and month columns
+# 
+# Swe_spawn_int3$Year <- as.numeric(format(as.Date(Swe_spawn_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# 
+# #remove MSYukon site - very high outlier skews data too much
+# 
+# Swe_spawn_int3 <- Swe_spawn_int3 %>% filter(Site!="MSYukonR")
+# 
+# Swe_spawn_int4 <- select(Swe_spawn_int3,-StdTime)
+# 
+# 
+# 
+# #summarise to watershed
+# 
+# Swe_spawn_int4b <- Swe_spawn_int4 %>% group_by(Population,Year) %>% 
+#   summarise(Snowpack_mean=mean(Swe))
+# 
+# 
+# #index to t = 0
+# 
+# Swe_spawn_int5 <- Swe_spawn_int4b %>% 
+#   mutate(Year2 = Year-0) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Swe_spawn_int6 <- filter(Swe_spawn_int5,Year>1984&Year<2013)
+# 
+# ggplot(Swe_spawn_int6,aes(y=Snowpack_mean,x=Population))+
+#   geom_boxplot()+ylab("Snowpack")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Swe_spawn_int7 <- Swe_spawn_int6
+# 
+# Swe_spawn_int7$Snowpack_mean <- scale(Swe_spawn_int7$Snowpack_mean)
+# 
+# #organize into matrix for analyses
+# Swe_spawn_int8 <- Swe_spawn_int7 %>% 
+#   spread(key=Year,value=Snowpack_mean)
+# #checked popn order before slicing
+# annual_snowpack <- as.matrix(Swe_spawn_int8[2:29])
+# 
+# write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annual_snowpack_spawning_sum.csv"),row.names=FALSE)
+# 
+# 
 
-Swe_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Snow_max.csv"))
+#Snow on Apr1 by year averaged over spawning watersheds
+
+Swe_spawn_Apr_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Spawning_snow_Apr1_mean.csv"))
 
 
-Swe_int2 <- select(Swe_int1,SUB_DRAINA,StdTime,MEAN)
-Swe_int3 <- rename(Swe_int2,Population="SUB_DRAINA",Swe="MEAN")
+Swe_spawn_Apr_int2 <- select(Swe_spawn_Apr_int1,Population,Site_1,StdTime,MEAN)
+Swe_spawn_Apr_int3 <- rename(Swe_spawn_Apr_int2,Site="Site_1",Swe="MEAN")
 
 #pull out year and month columns
 
-Swe_int3$Year <- as.numeric(format(as.Date(Swe_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Swe_spawn_Apr_int3$Year <- as.numeric(format(as.Date(Swe_spawn_Apr_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
 
-Swe_int4 <- select(Swe_int3,-StdTime)
+#remove MSYukon site - very high outlier skews data too much
+# 
+# Swe_spawn_Apr_int3 <- Swe_spawn_Apr_int3 %>% filter(Site!="MSYukonR")
 
-ggplot(Swe_int4,aes(y=Swe,x=Population))+
-  geom_boxplot()+ylab("Snowpack")+theme_bw()+
-  theme(text = element_text(size=25),axis.text=element_text(size=20),
-        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
-        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+Swe_spawn_Apr_int4 <- select(Swe_spawn_Apr_int3,-StdTime)
 
-ggplot(Swe_int4,aes(y=Swe,x=Year))+
-  geom_point()+geom_smooth()+ylab("Snowpack")+theme_bw()+
-  theme(text = element_text(size=25),axis.text=element_text(size=20),
-        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
-        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-mod1 <- lm(Swe~Year,data=Swe_int4)
-summary(mod1)
+
+#summarise to watershed
+
+Swe_spawn_Apr_int4b <- Swe_spawn_Apr_int4 %>% group_by(Population,Year) %>% 
+  summarise(Snowpack_mean=mean(Swe))
+
 
 #index to t = 0
 
-Swe_int5 <- Swe_int4 %>% 
+Swe_spawn_Apr_int5 <- Swe_spawn_Apr_int4b %>% 
   mutate(Year2 = Year-0) %>% 
   select(-Year) %>% 
   rename(Year=Year2)
 
 #remove extra years i.e. <1985 and >2012
-Swe_int6 <- filter(Swe_int5,Year>1984&Year<2013)
+Swe_spawn_Apr_int6 <- filter(Swe_spawn_Apr_int5,Year>1984&Year<2013)
 
-Swe_int7 <- Swe_int6
 
-Swe_int7$Swe <- scale(Swe_int7$Swe)
+Swe_spawn_Apr_int7 <- Swe_spawn_Apr_int6
+
+ggplot(Swe_spawn_Apr_int6,aes(y=Snowpack_mean,x=Year))+facet_wrap(~Population)+
+  geom_point()+geom_smooth()+ylab("Snowpack")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Swe_spawn_Apr_int7$Snowpack_mean <- scale(Swe_spawn_Apr_int7$Snowpack_mean)
 
 #organize into matrix for analyses
-Swe_int8 <- Swe_int7 %>% 
-  spread(key=Year,value=Swe)
+Swe_spawn_Apr_int8 <- Swe_spawn_Apr_int7 %>% 
+  spread(key=Year,value=Snowpack_mean)
 #checked popn order before slicing
-annual_snowpack <- as.matrix(Swe_int8[2:29])
+annual_snowpack <- as.matrix(Swe_spawn_Apr_int8[2:29])
 
-write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/annual_snowpack.csv"),row.names=FALSE)
+write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/snowpack_spawning_mean_Apr1.csv"),row.names=FALSE)
 
+
+
+
+#Snowpack on Apr1 by year averaged over spawning watersheds (Sum snowpack)
+# 
+# Swe_spawn_Apr_sum_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Spawning_snow_Apr1_sum.csv"))
+# 
+# 
+# Swe_spawn_Apr_sum_int2 <- select(Swe_spawn_Apr_sum_int1,Population,Site_1,StdTime,SUM)
+# Swe_spawn_Apr_sum_int3 <- rename(Swe_spawn_Apr_sum_int2,Site="Site_1",Swe="SUM")
+# 
+# #pull out year and month columns
+# 
+# Swe_spawn_Apr_sum_int3$Year <- as.numeric(format(as.Date(Swe_spawn_Apr_sum_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# 
+# #remove MSYukon site - very high outlier skews data too much
+# 
+# Swe_spawn_Apr_sum_int3 <- Swe_spawn_Apr_sum_int3 %>% filter(Site!="MSYukonR")
+# 
+# Swe_spawn_Apr_sum_int4 <- select(Swe_spawn_Apr_sum_int3,-StdTime)
+# 
+# 
+# 
+# #summarise to watershed
+# 
+# Swe_spawn_Apr_sum_int4b <- Swe_spawn_Apr_sum_int4 %>% group_by(Population,Year) %>% 
+#   summarise(Snowpack_mean=mean(Swe))
+# 
+# 
+# #index to t = 0
+# 
+# Swe_spawn_Apr_sum_int5 <- Swe_spawn_Apr_sum_int4b %>% 
+#   mutate(Year2 = Year-0) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Swe_spawn_Apr_sum_int6 <- filter(Swe_spawn_Apr_sum_int5,Year>1984&Year<2013)
+# 
+# ggplot(Swe_spawn_Apr_sum_int6,aes(y=Snowpack_mean,x=Population))+
+#   geom_boxplot()+ylab("Snowpack")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Swe_spawn_Apr_sum_int7 <- Swe_spawn_Apr_sum_int6
+# 
+# Swe_spawn_Apr_sum_int7$Snowpack_mean <- scale(Swe_spawn_Apr_sum_int7$Snowpack_mean)
+# 
+# #organize into matrix for analyses
+# Swe_spawn_Apr_sum_int8 <- Swe_spawn_Apr_sum_int7 %>% 
+#   spread(key=Year,value=Snowpack_mean)
+# #checked popn order before slicing
+# annual_snowpack <- as.matrix(Swe_spawn_Apr_sum_int8[2:29])
+# 
+# write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/snowpack_spawning_sum_Apr1.csv"),row.names=FALSE)
 
 
 
@@ -742,7 +1396,6 @@ write.csv(SST_winter_new,file.path(dir.data,"/Environmental data/Processed/SST_w
 
 ##### cold pool ---------------------------------------------------------------------
 
-#Bering Sea data - time series not long enough
 Coldpool_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/ColdPool.csv"))
 
 #index to first summer in marine environment
@@ -762,6 +1415,133 @@ Coldpool_int4 <- t(scale(as.numeric(Coldpool_int3$Value)))
 Coldpool <- Coldpool_int4[rep(seq_len(nrow(Coldpool_int4)),each=8),]
 
 write.csv(Coldpool,file.path(dir.data,"/Environmental data/Processed/Coldpool.csv"),row.names=FALSE)
+
+
+##### Marine competition ------------------------------------------------------
+
+#try indices from Cunningham paper 
+
+#Data from Ruggerone and Irvine 2018 DOI: 10.1002/mcf2.10023
+
+#japanese hatchery chum
+# 
+# Jap_chum_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/JapChumHatchery.csv"))
+# 
+# #index to second summer in marine environment
+# 
+# Jap_chum_int2 <- Jap_chum_int1 %>% 
+#   mutate(Year2 = Year-3) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Jap_chum_int3 <- filter(Jap_chum_int2,Year>1984&Year<2013)
+# 
+# #standardize
+# Jap_chum_int4 <- t(scale(as.numeric(Jap_chum_int3$Returns)))
+# 
+# #copy rows down
+# Jap_chum <- Jap_chum_int4[rep(seq_len(nrow(Jap_chum_int4)),each=8),]
+# 
+# write.csv(Jap_chum,file.path(dir.data,"/Environmental data/Processed/Jap_chum.csv"),row.names=FALSE)
+
+#Pink salmon all competition
+
+Pink_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pink_all.csv"))
+
+#index to second summer in marine environment
+
+Pink_int2 <- Pink_int1 %>% 
+  mutate(Year2 = Year-3) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Pink_int3 <- filter(Pink_int2,Year>1984&Year<2013)
+
+Pink_int4 <- Pink_int3 %>% select(Year,Total)
+
+#standardize
+Pink_int5 <- t(scale(as.numeric(Pink_int4$Total)))
+
+#copy rows down
+Pink <- Pink_int5[rep(seq_len(nrow(Pink_int5)),each=8),]
+
+write.csv(Pink,file.path(dir.data,"/Environmental data/Processed/Pink.csv"),row.names=FALSE)
+
+#Chum salmon all competition
+
+Chum_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Chum_all.csv"))
+
+#index to second summer in marine environment
+
+Chum_int2 <- Chum_int1 %>% 
+  mutate(Year2 = Year-3) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Chum_int3 <- filter(Chum_int2,Year>1984&Year<2013)
+
+Chum_int4 <- Chum_int3 %>% select(Year,Total)
+
+#standardize
+Chum_int5 <- t(scale(as.numeric(Chum_int4$Total)))
+
+#copy rows down
+Chum <- Chum_int5[rep(seq_len(nrow(Chum_int5)),each=8),]
+
+write.csv(Chum,file.path(dir.data,"/Environmental data/Processed/Chum.csv"),row.names=FALSE)
+
+
+#Sockeye salmon all competition
+# 
+# Sockeye_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Sockeye_all.csv"))
+# 
+# #index to second summer in marine environment
+# 
+# Sockeye_int2 <- Sockeye_int1 %>% 
+#   mutate(Year2 = Year-3) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Sockeye_int3 <- filter(Sockeye_int2,Year>1984&Year<2013)
+# 
+# Sockeye_int4 <- Sockeye_int3 %>% select(Year,Total)
+# 
+# #standardize
+# Sockeye_int5 <- t(scale(as.numeric(Sockeye_int4$Total)))
+# 
+# #copy rows down
+# Sockeye <- Sockeye_int5[rep(seq_len(nrow(Sockeye_int5)),each=8),]
+# 
+# write.csv(Sockeye,file.path(dir.data,"/Environmental data/Processed/Sockeye.csv"),row.names=FALSE)
+# 
+# 
+# #Chum salmon hatchery competition
+# 
+# Chum_hatch_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Chum_hatchery_all.csv"))
+# 
+# #index to second summer in marine environment
+# 
+# Chum_hatch_int2 <- Chum_hatch_int1 %>% 
+#   mutate(Year2 = Year-3) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Chum_hatch_int3 <- filter(Chum_hatch_int2,Year>1984&Year<2013)
+# 
+# Chum_hatch_int4 <- Chum_hatch_int3 %>% select(Year,Total)
+# 
+# #standardize
+# Chum_hatch_int5 <- t(scale(as.numeric(Chum_hatch_int4$Total)))
+# 
+# #copy rows down
+# Chum_hatch <- Chum_hatch_int5[rep(seq_len(nrow(Chum_hatch_int5)),each=8),]
+# 
+# write.csv(Chum_hatch,file.path(dir.data,"/Environmental data/Processed/Chum_hatch_all.csv"),row.names=FALSE)
 
 
 
@@ -790,7 +1570,6 @@ write.csv(YRdischarge,file.path(dir.data,"/Environmental data/Processed/YRDischa
 
 Pilotdischarge_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pilot_YR_discharge_monthly.csv"))
 
-
 Pilotdischarge_int2 <- Pilotdischarge_int1 %>% filter(month_nu==7)%>%
   dplyr::select(year_nu,mean_va) %>% rename(Pdischarge=mean_va,Year=year_nu) %>% 
   filter(Year>1984&Year<2013)
@@ -818,13 +1597,236 @@ Pilotdischarge <- Pilotdischarge_int7[rep(seq_len(nrow(Pilotdischarge_int7)),eac
 write.csv(Pilotdischarge,file.path(dir.data,"/Environmental data/Processed/PilotDischarge.csv"),row.names=FALSE)
 
 
+#Daily
+
+Pilotdischarge_daily_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pilot_YR_discharge_daily.csv")) %>% 
+  select(Date,Discharge)
+
+Pilotdischarge_daily_int2 <- Pilotdischarge_daily_int1 %>% 
+ mutate(year = as.numeric(format(as.Date(Date, format="%Y-%m-%d", "%H:%M:%S"),"%Y")),
+        month = as.numeric(format(as.Date(Date, format="%Y-%m-%d", "%H:%M:%S"),"%m")),
+        week = as.numeric(format(as.Date(Date, format="%Y-%m-%d", "%H:%M:%S"),"%W")),
+        yday=yday(Date))
+
+Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv")) 
+
+Pilotdischarge_daily_int3 <- left_join(Timing_int1,Pilotdischarge_daily_int2)
+
+ggplot(Pilotdischarge_daily_int3,aes(y=Discharge,x=yday))+
+  geom_point()+geom_smooth()+facet_wrap(~year)
+
+#missing years will need estimating: 1997 - 2000
+
+Discharge_stats <- Pilotdischarge_daily_int3 %>% group_by(yday) %>% 
+  summarise(mean_discharge=mean(Discharge,na.rm=TRUE))
+
+ggplot(Discharge_stats,aes(y=mean_discharge,x=yday))+
+  geom_point()+geom_smooth()
+
+#fill in missing years
+
+Pilotdischarge_daily_int4 <- left_join(Pilotdischarge_daily_int3,Discharge_stats)
+Pilotdischarge_daily_int4$Discharge <- as.numeric(Pilotdischarge_daily_int4$Discharge)
+
+Pilotdischarge_daily_int5 <- Pilotdischarge_daily_int4 %>% 
+  mutate(Discharge=if_else(year<1997|year>2000,Discharge,mean_discharge))
+
+ggplot(Pilotdischarge_daily_int5,aes(y=Discharge,x=yday))+
+  geom_point()+geom_smooth()+facet_wrap(~year)
+
+#interpolate - end of season in 1998
+
+# library(imputeTS)
+# 
+# Pilotdischarge_daily_int6 <- Pilotdischarge_daily_int5 %>% na.interpolation()
+# 
+# ggplot(Pilotdischarge_daily_int6,aes(y=Discharge,x=yday))+
+#   geom_point()+geom_smooth()+facet_wrap(~year)
+
+
+Pilotdischarge_daily_int6 <- Pilotdischarge_daily_int5 %>% group_by(year,population) %>% 
+  summarise(Discharge=mean(Discharge,na.rm=TRUE))
+
+#remove extra years i.e. <1985 and >2012
+Pilotdischarge_daily_int7 <- filter(Pilotdischarge_daily_int6,year>1984&year<2013)
+
+
+Pilotdischarge_daily_int8 <- Pilotdischarge_daily_int7
+
+Pilotdischarge_daily_int8$Discharge <- scale(Pilotdischarge_daily_int8$Discharge)
+
+#organize into matrix for analyses
+Pilotdischarge_daily_int9 <- Pilotdischarge_daily_int8 %>% 
+  spread(key=year,value=Discharge)
+
+#checked popn order before slicing
+daily_discharge <- as.matrix(Pilotdischarge_daily_int9[2:29])
+
+write.csv(daily_discharge,file.path(dir.data,"/Environmental data/Processed/PilotDischarge_daily.csv"),row.names=FALSE)
+
+
+
+# Freshwater winter -------------------------------------------------------
+
+Winter_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/monthly_winter_temps_spawningsites.csv"))
+
+#calculate annual winter temperature for incubating eggs
+#Nov and Dec t=0
+#Jan - Apr t=1
+
+Winter_temp_int5a <- filter(Winter_temp_int1,month==11|month==12)
+Winter_temp_int5b <- filter(Winter_temp_int1,month==1|month==2|month==3|month==4) %>% 
+  mutate(year=year-1)
+
+Winter_temp_int5c <- bind_rows(Winter_temp_int5a,Winter_temp_int5b)
+
+Winter_temp_int6 <- Winter_temp_int5c %>%
+  group_by(subbasin,year) %>%
+  summarise(Wintering_temp=mean(tmean))
+
+#remove extra years i.e. <1985 and >2012
+Winter_temp_int7 <- filter(Winter_temp_int6,year>1984&year<2013)
+
+#view trend
+ggplot(Winter_temp_int7,aes(y=Wintering_temp,x=year))+facet_wrap(~subbasin)+
+  geom_point(size=2)+geom_smooth()+ylab("Wintering air temperature (°C)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Winter_temp_int8 <- Winter_temp_int7
+
+Winter_temp_int8$Wintering_temp <- scale(Winter_temp_int8$Wintering_temp)
+
+#organize into matrix for analyses
+Winter_temp_int9 <- Winter_temp_int8 %>%
+  spread(key=year,value=Wintering_temp)
+#checked popn order before slicing
+Wintering_temp <- as.matrix(Winter_temp_int9[2:29])
+
+
+write.csv(Wintering_temp,file.path(dir.data,"/Environmental data/Processed/Winter_temp.csv"),row.names=FALSE)
+
+#Temp variation over full winter period
+# 
+# Winter_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/monthly_winter_temps_spawningsites.csv"))
+# 
+# #calculate annual winter temperature for incubating eggs
+# #Nov and Dec t=0
+# #Jan - Apr t=1
+# 
+# Winter_temp_int5a <- filter(Winter_temp_int1,month==11|month==12)
+# Winter_temp_int5b <- filter(Winter_temp_int1,month==1|month==2|month==3|month==4) %>% 
+#   mutate(year=year-1)
+# 
+# Winter_temp_int5c <- bind_rows(Winter_temp_int5a,Winter_temp_int5b)
+# 
+# Winter_temp_int6 <- Winter_temp_int5c %>%
+#   group_by(subbasin,year) %>%
+#   summarise(Winter_CV=(sd(tmean)/mean(tmean*-1)*100))
+# 
+# #remove extra years i.e. <1985 and >2012
+# Winter_temp_int7 <- filter(Winter_temp_int6,year>1984&year<2013)
+# 
+# #view trend
+# ggplot(Winter_temp_int7,aes(y=Winter_CV,x=year))+facet_wrap(~subbasin)+
+#   geom_point(size=2)+geom_smooth()+ylab("Wintering air temperature (°C)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Winter_temp_int8 <- Winter_temp_int7
+# 
+# Winter_temp_int8$Winter_CV <- scale(Winter_temp_int8$Winter_CV)
+# 
+# #organize into matrix for analyses
+# Winter_temp_int9 <- Winter_temp_int8 %>%
+#   spread(key=year,value=Winter_CV)
+# #checked popn order before slicing
+# Winter_CV <- as.matrix(Winter_temp_int9[2:29])
+# 
+# 
+# write.csv(Winter_CV,file.path(dir.data,"/Environmental data/Processed/Winter_temp_CV.csv"),row.names=FALSE)
+# 
+# 
+# 
+# 
+# #Temp variation over winter shoulder season months
+# 
+# Winter_temp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/monthly_winter_temps_spawningsites.csv"))
+# 
+# #calculate annual winter temperature for incubating eggs
+# #Nov and Dec t=0
+# #Jan - Apr t=1
+# 
+# Winter_temp_int5a <- filter(Winter_temp_int1,month==10|month==11)
+# Winter_temp_int5b <- filter(Winter_temp_int1,month==3|month==4) %>% 
+#   mutate(year=year-1)
+# Winter_temp_int5c <- bind_rows(Winter_temp_int5a,Winter_temp_int5b)
+# 
+# Winter_temp_int6 <- Winter_temp_int5c %>%
+#   group_by(subbasin,year) %>%
+#   summarise(Winter_CV=(sd(tmean)/mean(tmean*-1)*100))
+# 
+# #remove extra years i.e. <1985 and >2012
+# Winter_temp_int7 <- filter(Winter_temp_int6,year>1984&year<2013)
+# 
+# #view trend
+# ggplot(Winter_temp_int7,aes(y=Winter_CV,x=year))+facet_wrap(~subbasin)+
+#   geom_point(size=2)+geom_smooth()+ylab("Wintering air temperature (°C)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Winter_temp_int8 <- Winter_temp_int7
+# 
+# Winter_temp_int8$Winter_CV <- scale(Winter_temp_int8$Winter_CV)
+# 
+# #organize into matrix for analyses
+# Winter_temp_int9 <- Winter_temp_int8 %>%
+#   spread(key=year,value=Winter_CV)
+# #checked popn order before slicing
+# Winter_CV <- as.matrix(Winter_temp_int9[2:29])
+# 
+# write.csv(Winter_CV,file.path(dir.data,"/Environmental data/Processed/Winter_temp_shoulder_CV.csv"),row.names=FALSE)
+# 
+
+#winter length
+
+#read in data
+
+Winter_length_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/winter_length.csv"))
+
+#remove extra years i.e. <1985 and >2012
+Winter_length_int2 <- filter(Winter_length_int1,year>1984&year<2013) %>% select(-X)
+
+#view trend
+ggplot(Winter_length_int2,aes(y=winter_length,x=year))+facet_wrap(~subbasin)+
+  geom_point(size=2)+geom_smooth()+ylab("Winter length")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Winter_length_int3 <- Winter_length_int2
+
+Winter_length_int3$winter_length <- scale(Winter_length_int3$winter_length)
+
+#organize into matrix for analyses
+Winter_length_int4 <- Winter_length_int3 %>%
+  spread(key=year,value=winter_length)
+#checked popn order before slicing
+Winter_length <- as.matrix(Winter_length_int4[2:29])
+
+
+write.csv(Winter_length,file.path(dir.data,"/Environmental data/Processed/Winter_length.csv"),row.names=FALSE)
+
 # Checking correlations between vars -----------------------------------------------
 
 #wrangling to long data
-DailyMigtemp_t0_for_corrl <- rename(Daily_mig_temp_int2,Year="year",DailyMigtemp_t0="water_temp",Population="population")
-DailyMigtemp_t0_for_corrl$Population <- as.factor(DailyMigtemp_t0_for_corrl$Population)
-levels(DailyMigtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
-                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+# DailyMigtemp_t0_for_corrl <- rename(Daily_mig_temp_int2,Year="year",DailyMigtemp_t0="water_temp",Population="population")
+# DailyMigtemp_t0_for_corrl$Population <- as.factor(DailyMigtemp_t0_for_corrl$Population)
+# levels(DailyMigtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+#                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 
 WeeklyMigtemp_t0_for_corrl <- rename(Weekly_mig_temp_int2,Year="year",WeeklyMigtemp_t0="water_temp",Population="population")
@@ -833,15 +1835,16 @@ levels(WeeklyMigtemp_t0_for_corrl$Population)<- list("Lower Mainstem"="LowerMain
                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 
-Thres_yday_for_corrl <- rename(Thres17_yday_int2,Year="year",Population="population")
-Thres_yday_for_corrl$Population <- as.factor(Thres_yday_for_corrl$Population)
-levels(Thres_yday_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
-                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+# Thres_yday_for_corrl <- rename(Thres17_yday_int2,Year="year",Population="population")
+# Thres_yday_for_corrl$Population <- as.factor(Thres_yday_for_corrl$Population)
+# levels(Thres_yday_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+#                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+# 
+# Thres_count_for_corrl <- rename(Thres17_count_int2,Year="year",Population="population")
+# Thres_count_for_corrl$Population <- as.factor(Thres_count_for_corrl$Population)
+# levels(Thres_count_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+#                                           Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
-Thres_count_for_corrl <- rename(Thres17_count_int2,Year="year",Population="population")
-Thres_count_for_corrl$Population <- as.factor(Thres_count_for_corrl$Population)
-levels(Thres_count_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
-                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
 
 
 
@@ -856,21 +1859,35 @@ Ice_for_corrl_int2$Year <- as.numeric(Ice_for_corrl_int2$Year)
 Ice_for_corrl <- Ice_for_corrl_int2
 
 rearing_precip_for_corrl <- Prcp_int8
+rearing_max_precip_for_corrl <- Prcp_max_int8
 rearing_temp_for_corrl <-Temp_int8
-annual_snowpack_for_corrl <- Swe_int6
-spawning_temp_for_corrl <- Spawn_temp_int7
-spawning_prcp_for_corrl <-Spawn_prcp_int7
+rearing_GDD_for_corrl <- GDD_int7 %>% rename(Population=population)
+annual_snowpack_for_corrl <- Swe_spawn_Apr_int6
+spawning_temp_for_corrl <- Brown_water_int3 %>% rename(Population=subbasin_orig,
+                                                       Year=year,spawning_temp=wtmean)
+spawning_prcp_for_corrl <-Spawn_prcp_int7b
+spawning_max_prcp_for_corrl <-Spawn_prcp_max_int7b
 
 SST_winter_for_corrl <- SEBS_SST_int4
 SST_summer_for_corrl <- SST_summer_int3
 Discharge_for_corrl <- YRdischarge_int2 %>% rename(Year=year)
-Pilot_Discharge_for_corrl <- Pilotdischarge_int2
+Pilot_Discharge_for_corrl <- Pilotdischarge_daily_int7 %>% 
+  rename(Year=year,Population=population,Pdischarge=Discharge)
+Pilot_Discharge_for_corrl$Population <-  as.factor(Pilot_Discharge_for_corrl$Population)
+levels(Pilot_Discharge_for_corrl$Population)<- list("Lower Mainstem"="LowerMainstem","White Donjek"="White-Donjek","Middle Mainstem"="MiddleMainstem","Upper Lakes and Mainstem"="UpperMainstem",
+                                          Carmacks="Carmacks",Teslin="Teslin",Stewart="Stewart",Pelly="Pelly")
+
+
+PinkComp_for_corrl <- Pink_int4 %>% rename(Pink_total=Total)
+ChumComp_for_corrl <- Chum_int4 %>% rename(Chum_total=Total)
+FW_winter_for_corrl <- Winter_temp_int7%>% rename(Year=year,Population=subbasin)
+FW_winter_length_for_corrl <- Winter_length_int2%>% rename(Year=year,Population=subbasin)
 
 master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
-master_corrl <- left_join(master_corrl,DailyMigtemp_t0_for_corrl)
+#master_corrl <- left_join(master_corrl,DailyMigtemp_t0_for_corrl)
 master_corrl <- left_join(master_corrl,WeeklyMigtemp_t0_for_corrl)
 #master_corrl <- left_join(master_corrl,Thres_yday_for_corrl)
-master_corrl <- left_join(master_corrl,Thres_count_for_corrl)
+#master_corrl <- left_join(master_corrl,Thres_count_for_corrl)
 #master_corrl <- left_join(master_corrl,Migtemp_returns_for_corrl)
 master_corrl <- left_join(master_corrl,Ice_for_corrl)
 master_corrl <- left_join(master_corrl,annual_snowpack_for_corrl)
@@ -880,7 +1897,14 @@ master_corrl <- left_join(master_corrl,SST_winter_for_corrl)
 master_corrl <- left_join(master_corrl,SST_summer_for_corrl)
 master_corrl <- left_join(master_corrl,Discharge_for_corrl)
 master_corrl <- left_join(master_corrl,Pilot_Discharge_for_corrl)
-master_corrl_all <- master_corrl[,3:14]
+master_corrl <- left_join(master_corrl,PinkComp_for_corrl)
+master_corrl <- left_join(master_corrl,ChumComp_for_corrl)
+master_corrl <- left_join(master_corrl,FW_winter_for_corrl)
+master_corrl <- left_join(master_corrl,FW_winter_length_for_corrl)
+master_corrl <- left_join(master_corrl,spawning_max_prcp_for_corrl)
+master_corrl <- left_join(master_corrl,rearing_max_precip_for_corrl)
+master_corrl <- left_join(master_corrl,rearing_GDD_for_corrl)
+master_corrl_all <- master_corrl[,c(3:20)]
 
 write.csv(master_corrl,file.path(dir.data,"/Environmental data/Processed/all_env_unstd.csv"),row.names=FALSE)
 
@@ -890,7 +1914,7 @@ library(corrplot)
 corrplot(cor.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
-ggplot(master_corrl,aes(y=rearing_prcp,x=rearing_temp))+
+ggplot(master_corrl,aes(y=Wintering_temp,x=winter_length))+
   geom_point()+geom_smooth()+facet_wrap(~Population)
 
 ggplot(master_corrl,aes(y=rearing_prcp,x=spawning_prcp))+
@@ -899,49 +1923,49 @@ ggplot(master_corrl,aes(y=rearing_prcp,x=spawning_prcp))+
 #correlations by population
 
 Carmacks_master <- filter(master_corrl,Population=="Carmacks")
-Carmacks_master <- Carmacks_master[,3:14]
+Carmacks_master <- Carmacks_master[,c(3:12,14:16)]
 Carmacks.table <- cor(Carmacks_master)
 corrplot(Carmacks.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Lower_Mainstem_master <- filter(master_corrl,Population=="Lower Mainstem")
-Lower_Mainstem_master <- Lower_Mainstem_master[,3:14]
+Lower_Mainstem_master <- Lower_Mainstem_master[,c(3:12,14:16)]
 Lower_Mainstem.table <- cor(Lower_Mainstem_master)
 corrplot(Lower_Mainstem.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Middle_Mainstem_master <- filter(master_corrl,Population=="Middle Mainstem")
-Middle_Mainstem_master <- Middle_Mainstem_master[,3:14]
+Middle_Mainstem_master <- Middle_Mainstem_master[,c(3:12,14:16)]
 Middle_Mainstem.table <- cor(Middle_Mainstem_master)
 corrplot(Middle_Mainstem.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Pelly_master <- filter(master_corrl,Population=="Pelly")
-Pelly_master <- Pelly_master[,3:14]
+Pelly_master <- Pelly_master[,c(3:12,14:16)]
 Pelly.table <- cor(Pelly_master)
 corrplot(Pelly.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Stewart_master <- filter(master_corrl,Population=="Stewart")
-Stewart_master <- Stewart_master[,3:14]
+Stewart_master <- Stewart_master[,c(3:12,14:16)]
 Stewart.table <- cor(Stewart_master)
 corrplot(Stewart.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Teslin_master <- filter(master_corrl,Population=="Teslin")
-Teslin_master <- Teslin_master[,3:14]
+Teslin_master <- Teslin_master[,c(3:12,14:16)]
 Teslin.table <- cor(Teslin_master)
 corrplot(Teslin.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 Upper_Lakes_master <- filter(master_corrl,Population=="Upper Lakes and Mainstem")
-Upper_Lakes_master <- Upper_Lakes_master[,3:14]
+Upper_Lakes_master <- Upper_Lakes_master[,c(3:12,14:16)]
 Upper_Lakes.table <- cor(Upper_Lakes_master)
 corrplot(Upper_Lakes.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)
 
 White_Donjek_master <- filter(master_corrl,Population=="White Donjek")
-White_Donjek_master <- White_Donjek_master[,3:14]
+White_Donjek_master <- White_Donjek_master[,c(3:12,14:16)]
 White_Donjek.table <- cor(White_Donjek_master)
 corrplot(White_Donjek.table, method="number",type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45, insig="blank",sig.level=0.01)

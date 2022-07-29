@@ -210,7 +210,25 @@ Emmonak_water_int5c <- full_join(Emmonak_water_int5a,Emmonak_water_int5b)
 
 #adjust migration interval by population and year using derived passage timing from population diversity paper
 
-Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv"))
+Timing_int1 <- read.csv(file.path(dir.data,"MigTiming_intervals.csv")) 
+
+#timing window for July only
+# 
+# year <- rep(1985:2019,each=(31*8))
+# days=rep(1:31,times=(35*8))
+# population_names <- (c("Carmacks","LowerMainstem","MiddleMainstem","Pelly","Stewart","Teslin","UpperMainstem","White-Donjek"))
+# population <- rep(population_names,each=(31),times=35)
+# 
+# Timing_int1 <- data.frame(year,days,population)
+# 
+# dates <- seq(as.Date("1985-07-01"), as.Date("2019-07-31"), by="days")
+# dates <- as.data.frame(dates)
+# dates$Month <- as.numeric(format(as.Date(dates$dates, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+# dates$days <- as.numeric(format(as.Date(dates$dates, format="%Y-%m-%d", "%H:%M:%S"),"%d"))
+# dates$year <- as.numeric(format(as.Date(dates$dates, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# dates_July <- dates %>% mutate(yday=yday(dates)) %>% filter(Month==7) %>% select(-dates)
+# 
+# Timing_int1b <- left_join(Timing_int1,dates_July) %>% select(year,population,yday)
 
 #join to temperature data
 Emmonak_water_int6 <- Emmonak_water_int5c %>% 
