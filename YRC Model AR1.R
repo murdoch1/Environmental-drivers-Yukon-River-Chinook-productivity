@@ -602,6 +602,7 @@ plot(sigma_coef_plot)
 
 # Infer change in number of recruits --------------------------------------
 
+#Processing
 alpha <- as.data.frame(out$BUGSoutput$sims.list$alpha)
 
 alpha_sample <- alpha %>%
@@ -620,9 +621,85 @@ mig_temp_sample <- mig_temp %>%
   sample_n(1000,replace=TRUE) %>%
   as.data.frame() %>% gather(population,migtemp,1:8)
 
-sample <- data.frame(alpha_sample,beta_sample,mig_temp_sample) %>% select(1:2,4,6)
+ice_out <- as.data.frame(out$BUGSoutput$sims.list$coef[,,1])
 
-All_popns <- sample
+ice_out_sample <- ice_out %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,ice_out,1:8)
+
+rear_temp <- as.data.frame(out$BUGSoutput$sims.list$coef[,,3])
+
+rear_temp_sample <- rear_temp %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,reartemp,1:8)
+
+rear_precip <- as.data.frame(out$BUGSoutput$sims.list$coef[,,4])
+
+rear_precip_sample <- rear_precip %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,rear_precip,1:8)
+
+snow <- as.data.frame(out$BUGSoutput$sims.list$coef[,,5])
+
+snow_sample <- snow %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,snow,1:8)
+
+spawn_temp <- as.data.frame(out$BUGSoutput$sims.list$coef[,,6])
+
+spawn_temp_sample <- spawn_temp %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,spawntemp,1:8)
+
+spawn_precip <- as.data.frame(out$BUGSoutput$sims.list$coef[,,7])
+
+spawn_precip_sample <- spawn_precip %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,spawnprecip,1:8)
+
+SST_summ <- as.data.frame(out$BUGSoutput$sims.list$coef[,,8])
+
+SST_summ_sample <- SST_summ %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,SSTsummer,1:8)
+
+SST_wint <- as.data.frame(out$BUGSoutput$sims.list$coef[,,9])
+
+SST_wint_sample <- SST_wint %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,SSTwinter,1:8)
+
+Pink <- as.data.frame(out$BUGSoutput$sims.list$coef[,,10])
+
+Pink_sample <- Pink %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,Pink,1:8)
+
+Chum <- as.data.frame(out$BUGSoutput$sims.list$coef[,,11])
+
+Chum_sample <- Chum %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,Chum,1:8)
+
+Winter <- as.data.frame(out$BUGSoutput$sims.list$coef[,,12])
+
+Winter_sample <- Winter %>%
+  sample_n(1000,replace=TRUE) %>%
+  as.data.frame() %>% gather(population,WinterFW,1:8)
+
+All_popns <- data.frame(alpha_sample,beta_sample,mig_temp_sample,
+                     ice_out_sample,rear_temp_sample,rear_precip_sample,
+                     snow_sample,spawn_temp_sample,spawn_precip_sample,
+                     SST_summ_sample,SST_wint_sample,Pink_sample,
+                     Chum_sample,Winter_sample) %>% select(1:2,4,6,8,10,12,14,16,18,20,22,24,
+                                                           26,28)
+
+
+All_popns$population <- as.factor(All_popns$population)
+levels(All_popns$population)<- list("Lower Mainstem"="V2","White-Donjek"="V8","Middle Mainstem"="V3","Upper Lakes and Mainstem"="V7",
+                                          Carmacks="V1",Teslin="V6",Stewart="V5",Pelly="V4")
+
+All_popns_median <- All_popns
 
 #create spawner estimates
 Spred = seq(0, 32, 0.1)
@@ -635,40 +712,52 @@ rownames(Spred) <- NULL
 
 All_popns <- data.frame(All_popns,Spred)
 
-All_popns$population <- as.factor(All_popns$population)
-levels(All_popns$population)<- list("Lower Mainstem"="V2","White Donjek"="V8","Middle Mainstem"="V3","Upper Lakes and Mainstem"="V7",
-                                          Carmacks="V1",Teslin="V6",Stewart="V5",Pelly="V4")
 
+All_popns <- All_popns %>% gather(S_level,Spred,16:336)
 
-All_popns <- All_popns %>% gather(S_level,Spred,5:325)
-
-#need to check that calculations are correct in this step
 All_popns <- All_popns %>% 
   mutate(Rpred_migtemp = Spred*exp(alpha-beta*Spred+migtemp*1), #change in 1SD for migration temp
+         Rpred_iceout = Spred*exp(alpha-beta*Spred+ice_out*1),
+         Rpred_reartemp = Spred*exp(alpha-beta*Spred+reartemp*1),
+         Rpred_rearprcp = Spred*exp(alpha-beta*Spred+rear_precip*1),
+         Rpred_snow = Spred*exp(alpha-beta*Spred+snow*1),
+         Rpred_spawntemp = Spred*exp(alpha-beta*Spred+spawntemp*1),
+         Rpred_spawnprcp = Spred*exp(alpha-beta*Spred+spawnprecip*1),
+         Rpred_SSTsummer = Spred*exp(alpha-beta*Spred+SSTsummer*1),
+         Rpred_SSTwinter = Spred*exp(alpha-beta*Spred+SSTwinter*1),
+         Rpred_Pink = Spred*exp(alpha-beta*Spred+Pink*1),
+         Rpred_Chum = Spred*exp(alpha-beta*Spred+Chum*1),
+         Rpred_WinterFW = Spred*exp(alpha-beta*Spred+WinterFW*1),
         Rpred_null = Spred*exp(alpha-beta*Spred),
-        Rpred_diff=(Rpred_migtemp-Rpred_null)*1000, #multiplied by 1000 to give true numbers
+        Migtemp_diff=(Rpred_migtemp-Rpred_null)*1000, #multiplied by 1000 to give true numbers
+        Iceout_diff=(Rpred_iceout-Rpred_null)*1000,
+        Reartemp_diff=(Rpred_reartemp-Rpred_null)*1000,
+        Rearprcp_diff=(Rpred_rearprcp-Rpred_null)*1000,
+        Snow_diff=(Rpred_snow-Rpred_null)*1000,
+        Spawntemp_diff=(Rpred_spawntemp-Rpred_null)*1000,
+        Spawnprcp_diff=(Rpred_spawnprcp-Rpred_null)*1000,
+        SSTsummer_diff=(Rpred_SSTsummer-Rpred_null)*1000,
+        SSTwinter_diff=(Rpred_SSTwinter-Rpred_null)*1000,
+        Pink_diff=(Rpred_Pink-Rpred_null)*1000,
+        Chum_diff=(Rpred_Chum-Rpred_null)*1000,
+        WinterFW_diff=(Rpred_WinterFW-Rpred_null)*1000,
         Spawners=Spred*1000)
 
-#summary stats
-All_popns_summary <- All_popns %>% 
-  group_by(population,Spawners) %>% 
-  summarise(median=median(Rpred_diff),
-            q5=quantile(Rpred_diff,0.05),
-            q95=quantile(Rpred_diff,0.95))
+All_popns_summary <- All_popns %>% select(1,31:43) %>% 
+  gather(Covariate,Value,2:13) %>% 
+  group_by(population,Spawners,Covariate) %>% 
+  summarise(Med=median(Value),
+            q5=quantile(Value,0.05),
+            q95=quantile(Value,0.95))
 
-#summary of summary
-All_popns_summary2 <- All_popns_summary %>% 
-  group_by(population) %>% 
-  summarise(median=median(median),
-            q5=quantile(q5,0.05),
-            q95=quantile(q95,0.95))
-  
+
 #visualize
-All_popns_plot <- ggplot() +
-  geom_ribbon(data=All_popns_summary,aes(x=Spawners,ymin=q5,ymax=q95),
+All_popns_plot <- All_popns_summary %>% filter(Covariate=="Migtemp_diff") %>% 
+  ggplot()+
+  geom_ribbon(aes(x=Spawners,ymin=q5,ymax=q95),
               fill = "grey80", alpha=0.5, linetype=2, colour="gray46") +
-  geom_line(data = All_popns_summary, aes(x = Spawners, y = median), color="black", size = 0.75) +
-  facet_wrap(~population)+ 
+  geom_line(aes(x = Spawners, y = Med), color="black", size = 0.75) +
+  facet_wrap(~population)+
   xlab("Spawners") +
   ylab("Change in Recruits") +
   theme_bw() +
@@ -676,5 +765,165 @@ All_popns_plot <- ggplot() +
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-#can I also provide a mean estimate for all multi popns combined?
+#Maximum change in recruitment summary
 
+Aggregate_change_neg <- All_popns_summary %>% filter(Med<0) %>% 
+  group_by(population,Covariate) %>% 
+  slice_min(Med) #using max change based on median values
+
+Aggregate_change_pos <- All_popns_summary %>% filter(Med>0) %>% 
+  group_by(population,Covariate) %>% 
+  slice_max(Med) #using max change based on median values
+
+
+Aggregate_change <- bind_rows(Aggregate_change_pos,Aggregate_change_neg)
+  
+Aggregate_change_summary <-  Aggregate_change %>% 
+  filter(Covariate!="Chum_diff"&Covariate!="SSTsummer_diff") %>% #removing vars with no relationship
+  group_by(Covariate) %>% 
+  summarise(sum_spawners=sum(Spawners),
+            sum_maxR_change=sum(Med))
+
+Aggregate_change_summary$Covariate <- as.factor(Aggregate_change_summary$Covariate)
+
+Max_change_plot <- Aggregate_change_summary %>%
+  mutate(Covariate=fct_relevel(Covariate,"Rearprcp_diff","Migtemp_diff",
+                               "Reartemp_diff","Iceout_diff","Pink_diff",
+                               "Spawnprcp_diff","Snow_diff","WinterFW_diff",
+                               "Spawntemp_diff","SSTwinter_diff")) %>%
+  ggplot(aes(y=sum_maxR_change,x=Covariate))+
+  geom_col()+ylab("Max change in recruits")+xlab("Covariate")+theme_bw()+
+  scale_x_discrete(labels=c("Iceout_diff"="Ice\nout","Migtemp_diff"="Migration\ntemp",
+                            "Pink_diff"="Pink\nSalmon","Rearprcp_diff"="Rearing\nprecip",
+                            "Reartemp_diff"="Rearing\ntemp",
+                               "Snow_diff"="Snow","Spawnprcp_diff"="Spawning\nprecip",
+                               "Spawntemp_diff"="Spawning\ntemp",
+                            "SSTwinter_diff"="Winter\nSST",
+                            "WinterFW_diff"="Winter\nfreshwater"))+
+  theme(text = element_text(size=25),axis.text=element_text(size=15),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+  
+
+#calculate change in recruitment at median popn-specific spawner values instead
+
+summary_stats <- brood_table %>% 
+  group_by(population) %>%
+  summarise(Spawner_med=median(S_med),
+            Recruit_med=median(R_med))
+
+Spawner_med <- summary_stats %>% select(-Recruit_med)
+
+Spawner_med$population <- as.factor(Spawner_med$population)
+  
+All_popns_median <- left_join(All_popns_median,Spawner_med)
+
+All_popns_median2 <- All_popns_median %>% 
+  mutate(Rpred_migtemp = Spawner_med*exp(alpha-beta*Spawner_med+migtemp*1), #change in 1SD for migration temp
+         Rpred_iceout = Spawner_med*exp(alpha-beta*Spawner_med+ice_out*1),
+         Rpred_reartemp = Spawner_med*exp(alpha-beta*Spawner_med+reartemp*1),
+         Rpred_rearprcp = Spawner_med*exp(alpha-beta*Spawner_med+rear_precip*1),
+         Rpred_snow = Spawner_med*exp(alpha-beta*Spawner_med+snow*1),
+         Rpred_spawntemp = Spawner_med*exp(alpha-beta*Spawner_med+spawntemp*1),
+         Rpred_spawnprcp = Spawner_med*exp(alpha-beta*Spawner_med+spawnprecip*1),
+         Rpred_SSTsummer = Spawner_med*exp(alpha-beta*Spawner_med+SSTsummer*1),
+         Rpred_SSTwinter = Spawner_med*exp(alpha-beta*Spawner_med+SSTwinter*1),
+         Rpred_Pink = Spawner_med*exp(alpha-beta*Spawner_med+Pink*1),
+         Rpred_Chum = Spawner_med*exp(alpha-beta*Spawner_med+Chum*1),
+         Rpred_WinterFW = Spawner_med*exp(alpha-beta*Spawner_med+WinterFW*1),
+        Rpred_null = Spawner_med*exp(alpha-beta*Spawner_med),
+        Migtemp_diff=(Rpred_migtemp-Rpred_null)*1000, #multiplied by 1000 to give true numbers
+        Iceout_diff=(Rpred_iceout-Rpred_null)*1000,
+        Reartemp_diff=(Rpred_reartemp-Rpred_null)*1000,
+        Rearprcp_diff=(Rpred_rearprcp-Rpred_null)*1000,
+        Snow_diff=(Rpred_snow-Rpred_null)*1000,
+        Spawntemp_diff=(Rpred_spawntemp-Rpred_null)*1000,
+        Spawnprcp_diff=(Rpred_spawnprcp-Rpred_null)*1000,
+        SSTsummer_diff=(Rpred_SSTsummer-Rpred_null)*1000,
+        SSTwinter_diff=(Rpred_SSTwinter-Rpred_null)*1000,
+        Pink_diff=(Rpred_Pink-Rpred_null)*1000,
+        Chum_diff=(Rpred_Chum-Rpred_null)*1000,
+        WinterFW_diff=(Rpred_WinterFW-Rpred_null)*1000,
+        Spawners=Spawner_med*1000)
+
+All_popns_median_summary <- All_popns_median2 %>% select(1,30:42) %>% 
+  gather(Covariate,Value,2:13) %>% 
+  group_by(population,Spawners,Covariate) %>% 
+  summarise(Med=median(Value),
+            q5=quantile(Value,0.05),
+            q95=quantile(Value,0.95),
+            sd=sd(Value))
+
+
+All_popns_median_summary2 <-  All_popns_median_summary %>% 
+  filter(Covariate!="Chum_diff"&Covariate!="SSTsummer_diff") #removing vars with no relationship
+
+All_popns_median_summary2$Covariate <- as.factor(All_popns_median_summary2$Covariate)
+
+
+
+#visualize by population
+All_popns_median_plot <- All_popns_median_summary2 %>%
+  mutate(Covariate=fct_relevel(Covariate,"Rearprcp_diff","Migtemp_diff",
+                               "Reartemp_diff","Iceout_diff","Pink_diff",
+                               "Spawnprcp_diff","Snow_diff","WinterFW_diff",
+                               "Spawntemp_diff","SSTwinter_diff")) %>%
+  ggplot(aes(x=Covariate, y=Med))+
+  geom_bar(stat="identity",width=0.75) +
+  facet_wrap(~population)+
+  xlab("Covariate") +
+  ylab("Change in Recruits") +
+  theme_bw() +
+  geom_errorbar(aes(x=Covariate,ymin=Med-sd, ymax=Med+sd),width=.1) +
+  scale_x_discrete(labels=c("Iceout_diff"="Ice\nout","Migtemp_diff"="Migration\ntemp",
+                            "Pink_diff"="Pink\nSalmon","Rearprcp_diff"="Rearing\nprecip",
+                            "Reartemp_diff"="Rearing\ntemp",
+                               "Snow_diff"="Snow","Spawnprcp_diff"="Spawning\nprecip",
+                               "Spawntemp_diff"="Spawning\ntemp",
+                            "SSTwinter_diff"="Winter\nSST",
+                            "WinterFW_diff"="Winter\nfreshwater"))+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#combined changed in recruitment based on median spawner values for each popn
+
+Aggregate_change_median_neg <- All_popns_median_summary %>% filter(Med<0) 
+
+Aggregate_change_median_pos <- All_popns_median_summary %>% filter(Med>0) 
+
+Aggregate_change_median <- bind_rows(Aggregate_change_median_pos,Aggregate_change_median_neg)
+  
+Aggregate_change_median_summary <-  Aggregate_change_median %>% 
+  filter(Covariate!="Chum_diff"&Covariate!="SSTsummer_diff") %>% 
+  group_by(Covariate) %>% 
+  summarise(sum_spawners=sum(Spawners),
+            sum_maxR_change=sum(Med))
+
+Aggregate_change_median_summary$Covariate <- as.factor(Aggregate_change_median_summary$Covariate)
+
+#visualize combined
+Recruit_change_median <- Aggregate_change_median_summary %>%
+  mutate(Covariate=fct_relevel(Covariate,"Rearprcp_diff","Migtemp_diff",
+                               "Reartemp_diff","Iceout_diff","Pink_diff",
+                               "Spawnprcp_diff","Snow_diff","WinterFW_diff",
+                               "Spawntemp_diff","SSTwinter_diff")) %>%
+  ggplot(aes(y=sum_maxR_change,x=Covariate))+
+  geom_col()+ylab("Change in recruits")+xlab("Covariate")+theme_bw()+
+  scale_x_discrete(labels=c("Iceout_diff"="Ice\nout","Migtemp_diff"="Migration\ntemp",
+                            "Pink_diff"="Pink\nSalmon","Rearprcp_diff"="Rearing\nprecip",
+                            "Reartemp_diff"="Rearing\ntemp",
+                               "Snow_diff"="Snow","Spawnprcp_diff"="Spawning\nprecip",
+                               "Spawntemp_diff"="Spawning\ntemp",
+                            "SSTwinter_diff"="Winter\nSST",
+                            "WinterFW_diff"="Winter\nfreshwater"))+
+  theme(text = element_text(size=25),axis.text=element_text(size=15),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#is there a way to add some uncertainty to these combined plots?
+  
+
+
+
+  
