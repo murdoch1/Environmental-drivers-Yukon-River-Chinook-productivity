@@ -363,7 +363,7 @@ saveRDS(out, file=file.path(dir.output,"out.rds"))
 out.mcmc <- as.mcmc(out)
 
 #Write Output File for Diagnostics
-write.csv(out_orig$BUGSoutput$summary, file=file.path(dir.figs,"out_Pink.csv"))
+write.csv(out$BUGSoutput$summary, file=file.path(dir.figs,"out_Aug5.csv"))
 write.csv(out_nocomp$BUGSoutput$summary, file=file.path(dir.figs,"out_nocomp.csv"))
 write.csv(out_spawnair$BUGSoutput$summary, file=file.path(dir.figs,"out_spawnair.csv"))
 
@@ -450,7 +450,7 @@ mtext('Covariate', side=2, outer=TRUE, font=2, line=0.5)
 
 #739x503 saved dimensions
 
-pdf(file="Plots/Results_Jun8_prephi.pdf",width=9,height=6)
+pdf(file="Plots/Results_Aug5.pdf",width=9,height=6)
 
 #Hyper means summarized
 par(mfcol=c(1,1), mar=c(2,12,3,1), oma=c(2,2,1,1))
@@ -524,7 +524,7 @@ pdf(file="Plots/Fitted_plot_nocovars_July5.pdf",width=9,height=6)
 par(mfrow=c(2,2), mar=c(2,2,2,0), oma=c(2,2,1,1))
 p <- 1 
 for(p in 1:n.pops) {
-  log.pred <- apply(out_null$BUGSoutput$sims.list$log.pred.rec.2[,p,1:n.years[p]],2, 
+  log.pred <- apply(out$BUGSoutput$sims.list$log.pred.rec.2[,p,1:n.years[p]],2, 
                 quantile, probs=c(0.025,0.25,0.5,0.75,0.975))
   
     ylim <- c(0,max((ln.Recruits[p,]), log.pred, na.rm=TRUE))
@@ -599,6 +599,34 @@ plot(sigma_coef_plot)
 #(exp(median_coef*2)-1)*100 is percent change in recruitment for 2SD of that variable
 
 
+#fast plot for Salmon Gathering
+
+per_change <- read.csv(file.path(dir.data,"/Environmental data/Processed/Percent_change_Aug18.csv"))
+
+per_change$Var <- as.factor(per_change$Var)
+
+per_change <- per_change %>% filter(Var!="chum"&Var!="summer SST")
+
+Per_change_median <- per_change %>%
+  mutate(Var=fct_relevel(Var,"rearing prcp","migration temp",
+                               "rearing temp","Ice out","pink",
+                               "spawning prcp","snow","FW winter",
+                               "spawning temp","winter SST")) %>%
+  ggplot()+
+  geom_point(aes(y=median,x=Var),size=10)+
+  geom_hline(yintercept = 0, lty = "dotted",size=1) +
+  ylab("Change in the number of returning salmon (%)")+xlab("Change in the environment")+theme_bw()+
+  geom_errorbar(aes(x=Var,ymin=q5, ymax=q95),width=.1) +
+  scale_x_discrete(labels=c("Ice out"="Ice\nout\n\n(+4 days)","migration temp"="Migration\ntemp\n\n(+1.2°C)",
+                            "pink"="Pink\nSalmon\n\n(+61 million)","rearing prcp"="Rearing\nprecip\n\n(+29 mm)",
+                            "rearing temp"="Rearing\nGDD\n\n(+165 GDD)",
+                               "snow"="Snow\n\n\n(+61 mm)","spawning prcp"="Spawning\nprecip\n\n(+45 mm)",
+                               "spawning temp"="Spawning\ntemp\n\n(+1.5°C)",
+                            "winter SST"="Winter\nSST\n\n(+0.8°C)",
+                            "FW winter"="Winter\nfreshwater\n\n(+2.7°C)"))+
+  theme(text = element_text(size=25),axis.text=element_text(size=15),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
 # Infer change in number of recruits --------------------------------------
 
@@ -852,7 +880,7 @@ All_popns_median_summary <- All_popns_median2 %>% select(1,30:42) %>%
   summarise(Med=median(Value),
             q5=quantile(Value,0.05),
             q95=quantile(Value,0.95),
-            sd=sd(Value))
+            q50=quantile(Value,0.5))
 
 
 All_popns_median_summary2 <-  All_popns_median_summary %>% 
@@ -887,43 +915,111 @@ All_popns_median_plot <- All_popns_median_summary2 %>%
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
 #combined changed in recruitment based on median spawner values for each popn
-
-Aggregate_change_median_neg <- All_popns_median_summary %>% filter(Med<0) 
-
-Aggregate_change_median_pos <- All_popns_median_summary %>% filter(Med>0) 
-
-Aggregate_change_median <- bind_rows(Aggregate_change_median_pos,Aggregate_change_median_neg)
   
-Aggregate_change_median_summary <-  Aggregate_change_median %>% 
+
+Aggregate_change_median_summary <-  All_popns_median_summary %>% 
   filter(Covariate!="Chum_diff"&Covariate!="SSTsummer_diff") %>% 
   group_by(Covariate) %>% 
   summarise(sum_spawners=sum(Spawners),
-            sum_maxR_change=sum(Med))
+            sum_maxR_change=sum(Med),
+            sum_q5=sum(q5),
+            sum_q95=sum(q95),
+            sum_q50=sum(q50))
 
 Aggregate_change_median_summary$Covariate <- as.factor(Aggregate_change_median_summary$Covariate)
 
 #visualize combined
+
 Recruit_change_median <- Aggregate_change_median_summary %>%
   mutate(Covariate=fct_relevel(Covariate,"Rearprcp_diff","Migtemp_diff",
                                "Reartemp_diff","Iceout_diff","Pink_diff",
                                "Spawnprcp_diff","Snow_diff","WinterFW_diff",
                                "Spawntemp_diff","SSTwinter_diff")) %>%
-  ggplot(aes(y=sum_maxR_change,x=Covariate))+
-  geom_col()+ylab("Change in recruits")+xlab("Covariate")+theme_bw()+
-  scale_x_discrete(labels=c("Iceout_diff"="Ice\nout","Migtemp_diff"="Migration\ntemp",
-                            "Pink_diff"="Pink\nSalmon","Rearprcp_diff"="Rearing\nprecip",
-                            "Reartemp_diff"="Rearing\ntemp",
-                               "Snow_diff"="Snow","Spawnprcp_diff"="Spawning\nprecip",
-                               "Spawntemp_diff"="Spawning\ntemp",
-                            "SSTwinter_diff"="Winter\nSST",
-                            "WinterFW_diff"="Winter\nfreshwater"))+
+  ggplot()+
+  geom_point(aes(y=sum_maxR_change,x=Covariate),size=10)+
+  geom_hline(yintercept = 0, lty = "dotted",size=1) +
+  ylab("Change in the number of returning salmon")+xlab("Change in the environment")+theme_bw()+
+  geom_errorbar(aes(x=Covariate,ymin=sum_q5, ymax=sum_q95),width=.1) +
+  scale_x_discrete(labels=c("Iceout_diff"="Ice\nout\n\n(+4 days)","Migtemp_diff"="Migration\ntemp\n\n(+1.2°C)",
+                            "Pink_diff"="Pink\nSalmon\n\n(+61 million)","Rearprcp_diff"="Rearing\nprecip\n\n(+29 mm)",
+                            "Reartemp_diff"="Rearing\nGDD\n\n(+165 GDD)",
+                               "Snow_diff"="Snow\n\n\n(+61 mm)","Spawnprcp_diff"="Spawning\nprecip\n\n(+45 mm)",
+                               "Spawntemp_diff"="Spawning\ntemp\n\n(+1.5°C)",
+                            "SSTwinter_diff"="Winter\nSST\n\n(+0.8°C)",
+                            "WinterFW_diff"="Winter\nfreshwater\n\n(+2.7°C)"))+
   theme(text = element_text(size=25),axis.text=element_text(size=15),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-#is there a way to add some uncertainty to these combined plots?
+#organize vars by colour. add descriptions for what 1SD of each means in brackets
+#try adding low and high years also
+#consider removing vars that weren't significant at the main level - spawn temp and prcp
+
+
+pred_rec1 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,1,])
+pred_rec2 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,2,])
+pred_rec3 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,3,])
+pred_rec4 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,4,])
+pred_rec5 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,5,])
+pred_rec6 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,6,])
+pred_rec7 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,7,])
+pred_rec8 <- as.data.frame(out$BUGSoutput$sims.list$log.pred.rec.2[,8,])
+
+pred_rec1 <- pred_rec1 %>% mutate(population="Carmacks") %>% 
+  gather(year,recruitment,1:28)
   
+pred_rec2 <- pred_rec2 %>% mutate(population="Lower Mainstem") %>% 
+  gather(year,recruitment,1:28)
 
+pred_rec3 <- pred_rec3 %>% mutate(population="Middle Mainstem") %>% 
+  gather(year,recruitment,1:28)
 
+pred_rec4 <- pred_rec4 %>% mutate(population="Pelly") %>% 
+  gather(year,recruitment,1:28)
 
+pred_rec5 <- pred_rec5 %>% mutate(population="Stewart") %>% 
+  gather(year,recruitment,1:28)
+
+pred_rec6 <- pred_rec6 %>% mutate(population="Teslin") %>% 
+  gather(year,recruitment,1:28)
+
+pred_rec7 <- pred_rec7 %>% mutate(population="Upper Lakes and Mainstem") %>% 
+  gather(year,recruitment,1:28)
+
+pred_rec8 <- pred_rec8 %>% mutate(population="White-Donjek") %>% 
+  gather(year,recruitment,1:28)
+
+pred_rec_all <- bind_rows(pred_rec1,pred_rec2,pred_rec3,pred_rec4,pred_rec5,pred_rec6,pred_rec7,pred_rec8)
+
+#somethings not right here - left off - 
+
+pred_rec_all_summary <- pred_rec_all %>% mutate(recruitment=exp(recruitment)) %>% 
+  group_by(population,year) %>% 
+  summarise(mean_recruitment=mean(recruitment),
+            sd=sd(recruitment),
+            q5=quantile(recruitment,0.05),
+            q95=quantile(recruitment,0.95))
   
+pred_rec_all_summary2 <- pred_rec_all_summary %>% 
+  group_by(year) %>% 
+  summarise(total_recruitment=sum(mean_recruitment),
+            total_sd=sum(sd),
+            total_5=sum(q5),
+            total_95=sum(q95))
+
+pred_rec_all_summary2 <- pred_rec_all_summary2 %>% mutate(year=as.numeric(substr(year,2,4))) %>% 
+  arrange(year)
+
+pred_rec_all_summary2$year <- 1985:2012
+
+#need to check that this makes sense with adding the quantiles
+  
+Recruit_trend <- pred_rec_all_summary2 %>% ggplot()+
+  geom_point(aes(y=total_recruitment,x=year),size=5)+
+  geom_line(aes(y=total_recruitment,x=year)) + 
+  geom_hline(yintercept = 110.57, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=year,ymin = total_5, ymax = total_95),alpha=0.4) +
+                  ylab("Recruitment (000s)")+xlab("Year")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
