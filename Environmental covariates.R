@@ -33,6 +33,26 @@ Ice_int1 <- Ice_int1 %>%
 #remove extra years i.e. <1985 and >2012
 Ice_int2 <- filter(Ice_int1,Year>1984&Year<2013)
 
+iceout_summary <- Ice_int2 %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(Julian_day),
+            sd=sd(Julian_day))
+
+data_breaks <- data.frame(start = c(1985, 1991.5, 2001.5, 2010.5), 
+                          end = c(1991.5, 2001.5, 2010.5, 2012),
+                          colors = c("Above-Average","Average","Below-Average","Average"))
+
+iceout_trend <- iceout_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+   geom_point(aes(y=mean,x=Year),size=5)+
+  geom_line(aes(y=mean,x=Year)) + 
+   geom_hline(yintercept = 124.6, lty = "dotted",size=1) +xlab("Brood Year")+
+                  ylab("Ice out (day of year)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
 #standardize
 Ice_int3 <- t(scale(Ice_int2$Julian_day))
 
@@ -70,6 +90,54 @@ ggplot(Weekly_mig_temp_int2 ,aes(y=water_temp,x=year))+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+
+migtemp_summary <- Weekly_mig_temp_int2 %>% 
+  group_by(year) %>% 
+  summarise(mean=mean(water_temp),
+            sd=sd(water_temp))
+
+
+migtemp_trend <- migtemp_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=year),size=5)+
+  geom_line(aes(y=mean,x=year)) + 
+  geom_hline(yintercept = 16.45, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("Migration temperature (°C)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#no corrl
+
+Weekly_mig_temp_plot <- Weekly_mig_temp_int2
+
+
+Weekly_mig_temp_plot_summary <- Weekly_mig_temp_plot %>% 
+  group_by(year) %>% 
+  summarise(water_temp=mean(water_temp)) %>% 
+  mutate(population="all")
+
+Weekly_mig_temp_plot <- bind_rows(Weekly_mig_temp_plot,Weekly_mig_temp_plot_summary)
+
+migtemp_trend <- Weekly_mig_temp_plot %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(data= Weekly_mig_temp_plot[Weekly_mig_temp_plot$population=="all",],aes(y=water_temp,x=year),size=2) +
+  geom_line(aes(y=water_temp,x=year,group=population)) + 
+  geom_hline(yintercept = 16.45, lty = "dotted",size=1) +
+  geom_segment(x=2001.5,xend=2010.5,y=16.9,yend = 16.9, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=16.2,yend = 16.2, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=16.3,yend = 16.3, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=16.3,yend = 16.3, lty = "solid",size=1.5,color="#7a82ab") +
+  ylab("Migration temperature (°C)")+xlab("Brood Year")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+migtemp_trend2 <- migtemp_trend+annotate("text",x=2006,y=19.5,label='"*"',parse=TRUE,size=20)
+
+
 
 #standardize
 Weekly_mig_temp_int3 <- Weekly_mig_temp_int2
@@ -303,13 +371,6 @@ GDD_int5 <- GDD_int4 %>% filter(tmean>5) %>%
   mutate(GDD5=sum(tmean)) %>% 
   select(population,Year,GDD5) %>% distinct()
 
-#view trend
-ggplot(GDD_int5,aes(y=GDD5,x=Year))+facet_wrap(~population)+
-  geom_point(size=2)+geom_smooth()+ylab("Growing degree days")+theme_bw()+
-  theme(text = element_text(size=25),axis.text=element_text(size=20),
-        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
-        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
-
 #index to t = +1
 
 GDD_int5$Year <- as.numeric(GDD_int5$Year)
@@ -322,6 +383,52 @@ GDD_int6 <- GDD_int5 %>%
 
 #remove extra years i.e. <1985 and >2012
 GDD_int7 <- filter(GDD_int6,Year>1984&Year<2013)
+
+
+#view trend
+ggplot(GDD_int7,aes(y=GDD5,x=Year))+facet_wrap(~population)+
+  geom_point(size=2)+geom_smooth()+ylab("Growing degree days")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+GDD_plot_summary <- GDD_int7
+
+GDD_summary <- GDD_plot_summary %>% 
+  group_by(Year) %>% 
+  summarise(GDD5=mean(GDD5)) %>% 
+  mutate(population="all")
+
+GDD_plot_summary <- bind_rows(GDD_plot_summary,GDD_summary)
+
+# GDD_trend <- GDD_summary %>% ggplot()+
+#   geom_point(aes(y=mean,x=Year),size=5)+
+#   geom_line(aes(y=mean,x=Year)) + 
+#   geom_hline(yintercept = 1185.8, lty = "dotted",size=1) +
+#   geom_ribbon(aes(x=Year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+#                   ylab("Growing degree days")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+GDD_trend <- GDD_plot_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(data= GDD_plot_summary[GDD_plot_summary$population=="all",],aes(y=GDD5,x=Year),size=2) +
+  geom_line(aes(y=GDD5,x=Year,group=population)) + 
+  geom_hline(yintercept = 1185.8, lty = "dotted",size=1) +
+                  ylab("Growing degree days")+xlab("Brood Year")+theme_bw()+
+  geom_segment(x=2001.5,xend=2010.5,y=1242,yend = 1242, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=1125,yend = 1125, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=1179,yend = 1179, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=1179,yend = 1179, lty = "solid",size=1.5,color="#7a82ab") +
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+GDD_trend2 <- GDD_trend+annotate("text",x=2006,y=1580,label='"*"',parse=TRUE,size=20)
+
+
 
 GDD_int8 <- GDD_int7
 
@@ -338,77 +445,159 @@ write.csv(rearing_GDD,file.path(dir.data,"/Environmental data/Processed/rearing_
 
 
 
-##### Juvenile rearing precipitation ------------------------------------------------
+#check using grouped data from all subbasins
 
-#Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
+GDD_all_int1a <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yk_Tmax_daily1.csv"))
+GDD_all_int1b <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yk_Tmax_daily2.csv"))
+GDD_all_int1c <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yk_Tmin_daily1.csv"))
+GDD_all_int1d <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yk_Tmin_daily2.csv"))
+GDD_all_int1e <- read.csv(file.path(dir.data,"/Environmental data/Raw/Yk_Tmin_daily3.csv"))
 
-Prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
+GDD_all_int2a <- bind_rows(GDD_all_int1a,GDD_all_int1b) %>% rename(tmax="MEAN") %>% select(StdTime,tmax)
 
-Prcp_int2 <- select(Prcp_int1,SUB_DRAINA,StdTime,MEAN)
-Prcp_int3 <- rename(Prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+GDD_all_int2b <- bind_rows(GDD_all_int1c,GDD_all_int1d,GDD_all_int1e) %>% rename(tmin="MEAN") %>% select(StdTime,tmin)
 
-#pull out year and month columns
+GDD_all_int3 <- left_join(GDD_all_int2a,GDD_all_int2b)
 
-Prcp_int3$Year <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
-Prcp_int3$Month <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
-
-Prcp_int4 <- select(Prcp_int3,-StdTime)
-
-ggplot(Prcp_int4,aes(y=Prcp_mnth,x=as.factor(Month)))+
-  geom_boxplot()+ylab("Monthly precipitation (mm)")+theme_bw()+
-  facet_wrap(~Population)+
-  theme(text = element_text(size=25),axis.text=element_text(size=20),
-        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
-        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+GDD_all_int3$tmean=rowMeans(GDD_all_int3[,c("tmin","tmax")])
+  
+GDD_all_int4 <- GDD_all_int3 %>% 
+  mutate(Year=as.numeric(format(as.Date(StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y")),
+         Month=as.numeric(format(as.Date(StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m")),
+         yday=yday(StdTime)) %>% 
+  select(Year,Month,yday,tmean)
+  
+GDD_all_int5 <- GDD_all_int4 %>% filter(tmean>5) %>% 
+  group_by(Year) %>% 
+  mutate(GDD5=sum(tmean)) %>% 
+  select(Year,GDD5) %>% distinct()
 
 #index to t = +1
 
-Prcp_int5 <- Prcp_int4 %>% 
+GDD_all_int5$Year <- as.numeric(GDD_all_int5$Year)
+GDD_all_int5 <- as.data.frame(GDD_all_int5)
+
+GDD_all_int6 <- GDD_all_int5 %>% 
   mutate(Year2 = Year-1) %>% 
   select(-Year) %>% 
   rename(Year=Year2)
 
 #remove extra years i.e. <1985 and >2012
-Prcp_int6 <- filter(Prcp_int5,Year>1984&Year<2013)
+GDD_all_int7 <- filter(GDD_all_int6,Year>1984&Year<2013)
 
-#calculate annual rearing precipitation from June to Aug
-
-Prcp_int7 <- filter(Prcp_int6,Month==6|Month==7|Month==8) 
-
-Prcp_int8 <- Prcp_int7 %>% 
-  group_by(Population,Year) %>% 
-  summarise(rearing_prcp=sum(Prcp_mnth))
-
-Prcp_int9 <- Prcp_int8
 
 #view trend
-ggplot(Prcp_int8,aes(y=rearing_prcp,x=Year))+
-  geom_point(size=2)+geom_smooth()+ylab("Rearing precipitation (mm)")+theme_bw()+
-  facet_wrap(~Population)+
+ggplot(GDD_all_int7,aes(y=GDD5,x=Year))+
+  geom_point(size=2)+geom_smooth()+ylab("Growing degree days")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-ggplot(Prcp_int8,aes(y=rearing_prcp,x=Population))+
-  geom_boxplot()+ylab("Rearing precipitation (mm)")+theme_bw()+
+GDD_all_summary <- GDD_all_int7 %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(GDD5),
+            sd=sd(GDD5))
+
+
+GDD_all_trend <- GDD_all_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=Year),size=5)+
+  geom_line(aes(y=mean,x=Year)) + 
+  geom_hline(yintercept = 1185.8, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=Year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("Growing degree days")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
-Prcp_int8_2000 <- filter(Prcp_int8,Year>1999)
-mod1 <- gam(rearing_prcp~s(Year),data=Prcp_int8_2000)
-summary(mod1)
-plot(mod1)
 
-Prcp_int9$rearing_prcp <- scale(Prcp_int9$rearing_prcp)
+GDD_all_int8 <- GDD_all_int7
+
+GDD_all_int8$GDD5 <- scale(GDD_all_int8$GDD5)
 
 #organize into matrix for analyses
-Prcp_int10 <- Prcp_int9 %>% 
-  spread(key=Year,value=rearing_prcp)
-#checked popn order before slicing
-rearing_prcp <- as.matrix(Prcp_int10[2:29])
+GDD_all_int9 <- GDD_all_int8 %>% 
+  spread(key=Year,value=GDD5)
 
-write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"),row.names=FALSE)
+#copy rows down
+rearing_GDD_all <- GDD_all_int9[rep(seq_len(nrow(GDD_all_int9)),each=8),]
+
+
+write.csv(rearing_GDD_all,file.path(dir.data,"/Environmental data/Processed/rearing_GDD_all.csv"),row.names=FALSE)
+
+
+
+
+##### Juvenile rearing precipitation ------------------------------------------------
+
+#Using Daymet monthly precipitation data processed in ArcGIS Pro to watershed-level means
+# 
+# Prcp_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pmonthlymean.csv"))
+# 
+# Prcp_int2 <- select(Prcp_int1,SUB_DRAINA,StdTime,MEAN)
+# Prcp_int3 <- rename(Prcp_int2,Population="SUB_DRAINA",Prcp_mnth="MEAN")
+# 
+# #pull out year and month columns
+# 
+# Prcp_int3$Year <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+# Prcp_int3$Month <- as.numeric(format(as.Date(Prcp_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+# 
+# Prcp_int4 <- select(Prcp_int3,-StdTime)
+# 
+# ggplot(Prcp_int4,aes(y=Prcp_mnth,x=as.factor(Month)))+
+#   geom_boxplot()+ylab("Monthly precipitation (mm)")+theme_bw()+
+#   facet_wrap(~Population)+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# #index to t = +1
+# 
+# Prcp_int5 <- Prcp_int4 %>% 
+#   mutate(Year2 = Year-1) %>% 
+#   select(-Year) %>% 
+#   rename(Year=Year2)
+# 
+# #remove extra years i.e. <1985 and >2012
+# Prcp_int6 <- filter(Prcp_int5,Year>1984&Year<2013)
+# 
+# #calculate annual rearing precipitation from June to Aug
+# 
+# Prcp_int7 <- filter(Prcp_int6,Month==6|Month==7|Month==8) 
+# 
+# Prcp_int8 <- Prcp_int7 %>% 
+#   group_by(Population,Year) %>% 
+#   summarise(rearing_prcp=sum(Prcp_mnth))
+# 
+# Prcp_int9 <- Prcp_int8
+# 
+# #view trend
+# ggplot(Prcp_int8,aes(y=rearing_prcp,x=Year))+
+#   geom_point(size=2)+geom_smooth()+ylab("Rearing precipitation (mm)")+theme_bw()+
+#   facet_wrap(~Population)+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# ggplot(Prcp_int8,aes(y=rearing_prcp,x=Population))+
+#   geom_boxplot()+ylab("Rearing precipitation (mm)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+# 
+# Prcp_int8_2000 <- filter(Prcp_int8,Year>1999)
+# mod1 <- gam(rearing_prcp~s(Year),data=Prcp_int8_2000)
+# summary(mod1)
+# plot(mod1)
+# 
+# Prcp_int9$rearing_prcp <- scale(Prcp_int9$rearing_prcp)
+# 
+# #organize into matrix for analyses
+# Prcp_int10 <- Prcp_int9 %>% 
+#   spread(key=Year,value=rearing_prcp)
+# #checked popn order before slicing
+# rearing_prcp <- as.matrix(Prcp_int10[2:29])
+# 
+# write.csv(rearing_prcp,file.path(dir.data,"/Environmental data/Processed/rearing_prcp.csv"),row.names=FALSE)
 
 
 
@@ -447,9 +636,41 @@ Prcp_max_int8 <- Prcp_max_int7 %>%
 Prcp_max_int9 <- Prcp_max_int8
 
 #view trend
+
+rearprcp_plot <- Prcp_max_int8 
+
+rearprcp_plot_summary <- rearprcp_plot %>% 
+  group_by(Year) %>% 
+  summarise(rearing_prcp_max=mean(rearing_prcp_max)) %>% 
+  mutate(Population="all")
+
+rearprcp_plot <- bind_rows(rearprcp_plot,rearprcp_plot_summary)
+
+rearprcp_trend <- rearprcp_plot %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(data= rearprcp_plot[rearprcp_plot$Population=="all",],aes(y=rearing_prcp_max,x=Year),size=2) +
+  geom_line(aes(y=rearing_prcp_max,x=Year,group=Population)) + 
+  geom_hline(yintercept = 90.64, lty = "dotted",size=1) +
+                  ylab("Max monthly rearing precipitation (mm)")+xlab("Brood Year")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+
+# rearprcp_trend <- rearprcp_summary %>% ggplot()+
+#   geom_point(aes(y=mean,x=Year),size=5)+
+#   geom_line(aes(y=mean,x=Year)) + 
+#   geom_hline(yintercept = 90.64, lty = "dotted",size=1) +
+#   geom_ribbon(aes(x=Year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+#                   ylab("Max monthly rearing precipitation (mm)")+theme_bw()+
+#   theme(text = element_text(size=25),axis.text=element_text(size=20),
+#         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+#         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
 ggplot(Prcp_max_int8,aes(y=rearing_prcp_max,x=Year))+
-  geom_point(size=2)+geom_smooth()+ylab("Rearing precipitation (mm)")+theme_bw()+
-  facet_wrap(~Population)+
+  geom_point(size=2)+
+  geom_smooth()+ylab("Rearing precipitation (mm)")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
@@ -474,6 +695,60 @@ Prcp_max_int10 <- Prcp_max_int9 %>%
 rearing_prcp_max <- as.matrix(Prcp_max_int10[2:29])
 
 write.csv(rearing_prcp_max,file.path(dir.data,"/Environmental data/Processed/rearing_prcp_max.csv"),row.names=FALSE)
+
+
+#with all watersheds combined
+
+
+Prcp_max_all_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/prcpmonthly_combined.csv"))
+
+Prcp_max_all_int2 <- select(Prcp_max_all_int1,StdTime,MEAN)
+Prcp_max_all_int3 <- rename(Prcp_max_all_int2,Prcp_max_mnth="MEAN")
+
+#pull out year and month columns
+
+Prcp_max_all_int3$Year <- as.numeric(format(as.Date(Prcp_max_all_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+Prcp_max_all_int3$Month <- as.numeric(format(as.Date(Prcp_max_all_int3$StdTime, format="%Y-%m-%d", "%H:%M:%S"),"%m"))
+
+Prcp_max_all_int4 <- select(Prcp_max_all_int3,-StdTime)
+
+#index to t = +1
+
+Prcp_max_all_int5 <- Prcp_max_all_int4 %>% 
+  mutate(Year2 = Year-1) %>% 
+  select(-Year) %>% 
+  rename(Year=Year2)
+
+#remove extra years i.e. <1985 and >2012
+Prcp_max_all_int6 <- filter(Prcp_max_all_int5,Year>1984&Year<2013)
+
+#calculate annual rearing precipitation from June to Aug
+
+Prcp_max_all_int7 <- filter(Prcp_max_all_int6,Month==6|Month==7|Month==8) 
+
+Prcp_max_all_int8 <- Prcp_max_all_int7 %>% 
+  group_by(Year) %>% 
+  summarise(rearing_Prcp_max=max(Prcp_max_mnth))
+
+Prcp_max_all_int9 <- Prcp_max_all_int8
+
+Prcp_max_all_int9$rearing_Prcp_max <- scale(Prcp_max_all_int9$rearing_Prcp_max)
+
+
+#organize into matrix for analyses
+GDD_all_int9 <- GDD_all_int8 %>% 
+  spread(key=Year,value=GDD5)
+
+
+Prcp_max_all_int10 <- Prcp_max_all_int9 %>% 
+  spread(key=Year,value=rearing_Prcp_max)
+
+#copy rows down
+Prcp_max_all <- Prcp_max_all_int10[rep(seq_len(nrow(Prcp_max_all_int10)),each=8),]
+
+write.csv(Prcp_max_all,file.path(dir.data,"/Environmental data/Processed/rearing_prcp_max_all.csv"),row.names=FALSE)
+
+
 
 
 ##### Spawning and early incubation temperature -------------------------------
@@ -588,6 +863,22 @@ ggplot(Brown_water_int2,aes(y=wtmean,x=year))+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+spawntemp_summary <- Brown_water_int2 %>% 
+  group_by(year) %>% 
+  summarise(mean=mean(wtmean),
+            sd=sd(wtmean))
+
+spawntemp_trend <- spawntemp_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=year),size=5)+
+  geom_line(aes(y=mean,x=year)) + geom_smooth(aes(y=mean,x=year)) +
+  geom_hline(yintercept = 8.467, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("Spawning water temperature")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
 
 Brown_water_int3 <- Brown_water_int2 %>% select(subbasin_orig,year,wtmean)
 
@@ -744,6 +1035,27 @@ group_by(Population,Year) %>%
 
 ggplot(Spawn_prcp_int7b,aes(y=spawning_prcp,x=Population))+
   geom_boxplot()+ylab("Spawning precipitation total (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+ggplot(Spawn_prcp_int7b,aes(y=spawning_prcp,x=Year))+
+  geom_point()+geom_smooth()+ylab("Spawning precipitation total (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+spawnprcp_summary <- Spawn_prcp_int7b %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(total_spawning_prcp),
+            sd=sd(total_spawning_prcp))
+
+spawnprcp_trend <- spawnprcp_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=Year),size=5)+
+  geom_line(aes(y=mean,x=Year)) + 
+  geom_hline(yintercept = 164.4, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=Year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("Max monthly spawning precipitation (mm)")+theme_bw()+
   theme(text = element_text(size=25),axis.text=element_text(size=20),
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
@@ -1102,6 +1414,49 @@ ggplot(Swe_spawn_Apr_int6,aes(y=Snowpack_mean,x=Year))+facet_wrap(~Population)+
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
+snow_summary <- Swe_spawn_Apr_int6 %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(Snowpack_mean),
+            sd=sd(Snowpack_mean))
+
+snow_trend <- snow_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=Year),size=5)+
+  geom_line(aes(y=mean,x=Year)) + geom_smooth(aes(y=mean,x=Year))+
+  geom_hline(yintercept = 157.44, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=Year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("Snowpack (mm)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+
+Snow_plot_summary <- Swe_spawn_Apr_int6
+
+Snow_summary <- Snow_plot_summary %>% 
+  group_by(Year) %>% 
+  summarise(Snowpack_mean=mean(Snowpack_mean)) %>% 
+  mutate(Population="all")
+
+Snow_plot_summary <- bind_rows(Snow_plot_summary,Snow_summary)
+
+Snow_trend <- Snow_plot_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(data= Snow_plot_summary[Snow_plot_summary$Population=="all",],aes(y=Snowpack_mean,x=Year),size=2) +
+  geom_line(aes(y=Snowpack_mean,x=Year,group=Population)) + 
+  geom_hline(yintercept = 157.44, lty = "dotted",size=1) +
+                  ylab("Snowpack (mm)")+xlab("Brood Year")+theme_bw()+
+  geom_segment(x=2001.5,xend=2010.5,y=150,yend = 150, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=191,yend = 191, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=144,yend = 144, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=144,yend = 144, lty = "solid",size=1.5,color="#7a82ab") +
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Snow_trend2 <- Snow_trend+annotate("text",x=1988,y=350,label='"*"',parse=TRUE,size=20)
+
+
 Swe_spawn_Apr_int7$Snowpack_mean <- scale(Swe_spawn_Apr_int7$Snowpack_mean)
 
 #organize into matrix for analyses
@@ -1174,18 +1529,18 @@ write.csv(annual_snowpack,file.path(dir.data,"/Environmental data/Processed/snow
 ##### SST ---------------------------------------------------------------------
 
 # #Bering Sea data - time series not long enough
-# MaySST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/MaySST.csv")) %>% select(-"ï..OID_")
-# M2SST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/M2SST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
-# PISST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/PISST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
+MaySST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/MaySST.csv")) %>% select(-"ï..OID_")
+M2SST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/M2SST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
+PISST_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/PISST.csv")) %>% select(-lat,-lon,-depth,-"ï..OID_")
 # NEBtrawl_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Northeastern Bering Sea Trawl Temps.csv"))
 # 
-# SST_all <- full_join(MaySST_int1,M2SST_int1)
-# SST_all <- full_join(SST_all,PISST_int1)
-# 
-# SST_all$Year <- as.numeric(format(as.Date(SST_all$time, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
-# 
-# SST_all <- SST_all %>% select(-time) %>% 
-#   left_join(NEBtrawl_int1)
+SST_all <- full_join(MaySST_int1,M2SST_int1)
+SST_all <- full_join(SST_all,PISST_int1)
+
+SST_all$Year <- as.numeric(format(as.Date(SST_all$time, format="%Y-%m-%d", "%H:%M:%S"),"%Y"))
+
+SST_all <- SST_all %>% select(-time) %>%
+  left_join(NEBtrawl_int1)
 # 
 # #compare NOAA SST to Pribilof data
 # Prib_int1 <- read.csv(file.path(dir.data,"/Environmental data/Raw/Pribilof_SST.csv")) %>% 
@@ -1291,7 +1646,7 @@ SST_summer <- SST_summer_int4[rep(seq_len(nrow(SST_summer_int4)),each=8),]
 
 write.csv(SST_summer,file.path(dir.data,"/Environmental data/Processed/SST_summer.csv"),row.names=FALSE)
 
-#winter SST - use other version below based on southern bering sea
+#winter SST
 # 
 # SST_winter_int1 <- SST_int1 %>% group_by(Year) %>% 
 #   filter(Month=="1"|Month=="2"|Month=="3") %>% 
@@ -1351,6 +1706,39 @@ SEBS_SST_int3 <- SEBS_SST_int2 %>%
 
 #remove extra years i.e. <1985 and >2012
 SEBS_SST_int4 <- filter(SEBS_SST_int3,Year>1984&Year<2013)
+
+WinterSST_summary <- SEBS_SST_int4 %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(Winter_SST))
+
+WinterSST_trend <- WinterSST_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=Year),size=5)+
+  geom_line(aes(y=mean,x=Year)) + 
+  geom_hline(yintercept = 2.0943, lty = "dotted",size=1) +
+                  ylab("Winter SST")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+#looks like colder than average years may have contributed to declines 2005+
+
+SST_plot_summary <- SEBS_SST_int4
+
+SST_trend <- SST_plot_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(aes(y=Winter_SST,x=Year),size=2) + 
+  geom_hline(yintercept = 2.0943, lty = "dotted",size=1) +
+                  ylab("Winter SST (°C)")+xlab("Brood Year")+theme_bw()+
+  geom_segment(x=2001.5,xend=2010.5,y=1.56,yend = 1.56, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=2.11,yend = 2.11, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=2.48,yend = 2.48, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=2.48,yend = 2.48, lty = "solid",size=1.5,color="#7a82ab") +
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+SST_trend2 <- SST_trend+annotate("text",x=2006,y=3.6,label='"*"',parse=TRUE,size=20)
 
 #standardize
 SEBS_SST_int5 <- t(scale(SEBS_SST_int4$Winter_SST))
@@ -1461,6 +1849,47 @@ Pink_int3 <- filter(Pink_int2,Year>1984&Year<2013)
 
 Pink_int4 <- Pink_int3 %>% select(Year,Total)
 
+#view trend
+ggplot(Pink_int4,aes(y=Total,x=Year))+
+  geom_point(size=2)+geom_smooth()+ylab("Pink salmon (millions)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Pink_summary <- Pink_int4 %>% 
+  group_by(Year) %>% 
+  summarise(mean=mean(Total),
+            sd=sd(Total))
+
+
+Pink_trend <- Pink_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=Year),size=5)+geom_smooth(aes(y=mean,x=Year),method="lm")+
+  geom_line(aes(y=mean,x=Year)) + 
+  geom_hline(yintercept = 192.9, lty = "dotted",size=1) +
+                  ylab("Pink salmon (millions)")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+
+Pink_plot_summary <- Pink_int4
+
+Pink_trend <- Pink_plot_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(aes(y=Total,x=Year),size=2) + 
+  geom_hline(yintercept = 192.9, lty = "dotted",size=1) +
+                  ylab("Pink salmon (millions)")+xlab("Brood Year")+theme_bw()+
+  geom_segment(x=2001.5,xend=2010.5,y=200,yend = 200, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=164,yend = 164, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=204,yend = 204, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=204,yend = 204, lty = "solid",size=1.5,color="#7a82ab") +
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Pink_trend2 <- Pink_trend+annotate("text",x=1988,y=355,label='"*"',parse=TRUE,size=20)
+
 #standardize
 Pink_int5 <- t(scale(as.numeric(Pink_int4$Total)))
 
@@ -1484,6 +1913,26 @@ Chum_int2 <- Chum_int1 %>%
 Chum_int3 <- filter(Chum_int2,Year>1984&Year<2013)
 
 Chum_int4 <- Chum_int3 %>% select(Year,Total)
+
+summary(Chum_int4$Total)
+
+Chum_plot_summary <- Chum_int4
+
+Chum_trend <- Chum_plot_summary %>% ggplot()+
+  geom_rect(data=data_breaks,aes(xmin=start,xmax=end,ymin=-Inf,ymax=Inf,fill=colors),alpha=0.5,show.legend = FALSE)+
+  scale_fill_manual(values=c("#7a82ab","#C6D4FF","#307473","#C6D4FF"))+
+  geom_path(aes(y=Total,x=Year),size=2) + 
+  geom_hline(yintercept = 129.63, lty = "dotted",size=1) +
+                  ylab("Chum salmon (millions)")+xlab("Brood Year")+theme_bw()+
+  geom_segment(x=2001.5,xend=2010.5,y=134,yend = 134, lty = "solid",size=1.5,color="#307473") +
+    geom_segment(x=1985,xend=1991.5,y=112,yend = 112, lty = "solid",size=1.5,color="gray27") +
+    geom_segment(x=1991.5,xend=2001.5,y=137,yend = 137, lty = "solid",size=1.5,color="#7a82ab") +
+    geom_segment(x=2010.5,xend=2012,y=137,yend = 137, lty = "solid",size=1.5,color="#7a82ab") +
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
+Chum_trend2 <- Chum_trend+annotate("text",x=1988,y=155,label='"*"',parse=TRUE,size=20)
 
 #standardize
 Chum_int5 <- t(scale(as.numeric(Chum_int4$Total)))
@@ -1694,6 +2143,21 @@ ggplot(Winter_temp_int7,aes(y=Wintering_temp,x=year))+facet_wrap(~subbasin)+
         axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
         axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
 
+FWwinter_summary <- Winter_temp_int7 %>% 
+  group_by(year) %>% 
+  summarise(mean=mean(Wintering_temp),
+            sd=sd(Wintering_temp))
+
+FWwinter_trend <- FWwinter_summary %>% ggplot()+
+  geom_point(aes(y=mean,x=year),size=5)+
+  geom_line(aes(y=mean,x=year)) + 
+  geom_hline(yintercept = -13.36, lty = "dotted",size=1) +
+  geom_ribbon(aes(x=year,ymin = mean-sd, ymax = mean+sd),alpha=0.4) +
+                  ylab("FW Winter temperature")+theme_bw()+
+  theme(text = element_text(size=25),axis.text=element_text(size=20),
+        axis.title.x = element_text(margin=margin(t=20,r=0,b=20,l=0)),
+        axis.title.y = element_text(margin=margin(t=20,r=20,b=20,l=20)))
+
 Winter_temp_int8 <- Winter_temp_int7
 
 Winter_temp_int8$Wintering_temp <- scale(Winter_temp_int8$Wintering_temp)
@@ -1883,7 +2347,7 @@ ChumComp_for_corrl <- Chum_int4 %>% rename(Chum_total=Total)
 FW_winter_for_corrl <- Winter_temp_int7%>% rename(Year=year,Population=subbasin)
 FW_winter_length_for_corrl <- Winter_length_int2%>% rename(Year=year,Population=subbasin)
 
-master_corrl <- full_join(rearing_temp_for_corrl,rearing_precip_for_corrl,by=c("Year","Population"))
+master_corrl <- full_join(rearing_temp_for_corrl,rearing_max_precip_for_corrl,by=c("Year","Population"))
 #master_corrl <- left_join(master_corrl,DailyMigtemp_t0_for_corrl)
 master_corrl <- left_join(master_corrl,WeeklyMigtemp_t0_for_corrl)
 #master_corrl <- left_join(master_corrl,Thres_yday_for_corrl)
@@ -1904,7 +2368,7 @@ master_corrl <- left_join(master_corrl,FW_winter_length_for_corrl)
 master_corrl <- left_join(master_corrl,spawning_max_prcp_for_corrl)
 master_corrl <- left_join(master_corrl,rearing_max_precip_for_corrl)
 master_corrl <- left_join(master_corrl,rearing_GDD_for_corrl)
-master_corrl_all <- master_corrl[,c(3:20)]
+master_corrl_all <- master_corrl[,c(3:19)]
 
 write.csv(master_corrl,file.path(dir.data,"/Environmental data/Processed/all_env_unstd.csv"),row.names=FALSE)
 
